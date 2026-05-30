@@ -68,19 +68,28 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: espd-kit-*-${{ github.sha }}
-          merge-multiple: true
           path: dist
 
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          for board_dir in dist/*/; do
-            board=$(basename "$board_dir")
-            cp "${board_dir}bootloader.bin" "release-assets/${board}-bootloader.bin"
-            cp "${board_dir}partition-table.bin" "release-assets/${board}-partition-table.bin"
-            cp "${board_dir}espd.bin" "release-assets/${board}-espd.bin"
-            cp "${board_dir}flash_args" "release-assets/${board}-flash_args"
+          shopt -s nullglob
+          found=0
+          for artifact_dir in dist/espd-kit-*-*/; do
+            artifact=$(basename "${artifact_dir%/}")
+            board="${artifact#espd-kit-}"
+            board="${board%-${GITHUB_SHA}}"
+            cp "${artifact_dir}bootloader.bin" "release-assets/${board}-bootloader.bin"
+            cp "${artifact_dir}partition-table.bin" "release-assets/${board}-partition-table.bin"
+            cp "${artifact_dir}espd.bin" "release-assets/${board}-espd.bin"
+            cp "${artifact_dir}flash_args" "release-assets/${board}-flash_args"
+            found=$((found + 1))
           done
+          if [ "$found" -eq 0 ]; then
+            echo "No build artifacts under dist/espd-kit-*-${GITHUB_SHA}/"
+            find dist -type f 2>/dev/null || ls -laR dist || true
+            exit 1
+          fi
           ls -la release-assets
 
       - name: Generate manifest

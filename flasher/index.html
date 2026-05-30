@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ESPD Kits Flasher</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -45,14 +48,6 @@
       <div class="relative flex gap-5 pb-12" id="step1">
         <div id="badge1" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-red-500 bg-white text-[11px] font-bold text-red-500">1</div>
         <div class="min-w-0 flex-1">
-          <h2 class="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Choose board</h2>
-          <div id="board-grid" class="grid gap-3 sm:grid-cols-2"></div>
-        </div>
-      </div>
-
-      <div class="relative flex gap-5 pb-12 opacity-30 pointer-events-none select-none" id="step2">
-        <div id="badge2" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-neutral-300 bg-white text-[11px] font-bold text-neutral-300">2</div>
-        <div class="min-w-0 flex-1">
           <h2 class="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Choose firmware</h2>
           <div class="mb-4 inline-flex border border-neutral-300">
             <button type="button" class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider bg-black text-white" id="tab-release">Release</button>
@@ -68,7 +63,6 @@
             <select id="release-select" class="hidden w-full border border-neutral-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-black">
               <option value="">Choose version…</option>
             </select>
-            <p id="board-no-fw" class="mt-2 hidden text-sm text-red-500">This board is not included in the selected release.</p>
           </div>
 
           <div id="fw-local-panel" class="hidden space-y-4">
@@ -82,6 +76,16 @@
               <p class="mt-1.5 text-xs text-neutral-400">0x10000 for the ESPD app partition on this board</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="relative flex gap-5 pb-12 opacity-30 pointer-events-none select-none" id="step2">
+        <div id="badge2" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-neutral-300 bg-white text-[11px] font-bold text-neutral-300">2</div>
+        <div class="min-w-0 flex-1">
+          <h2 class="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Choose board</h2>
+          <p id="board-hint" class="mb-4 hidden text-sm text-neutral-400">Pick a release version first.</p>
+          <p id="board-none" class="hidden border border-neutral-200 px-4 py-3 text-sm text-neutral-600">No boards in this release.</p>
+          <div id="board-grid" class="grid gap-3 sm:grid-cols-2"></div>
         </div>
       </div>
 
@@ -104,7 +108,7 @@
                 Your browser will ask you to pick the USB serial port — that is the connection step. If the board is not detected, hold BOOT, press RESET, then release BOOT.
               </p>
             </div>
-            <p id="flash-incomplete" class="text-sm text-neutral-400">Complete steps 1 and 2 first.</p>
+            <p id="flash-incomplete" class="text-sm text-neutral-400">Complete the steps above first.</p>
           </div>
         </div>
       </div>

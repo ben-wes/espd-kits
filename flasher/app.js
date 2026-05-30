@@ -24,28 +24,48 @@ function releaseDownloadBase(tag) {
   return `https://github.com/${REPO}/releases/download/${tag}`
 }
 
-async function loadBoardCatalog() {
-  try {
-    const res = await fetch('manifests/boards.json')
-    if (!res.ok) throw new Error('HTTP ' + res.status)
-    const data = await res.json()
-    boards = data.boards || []
-  } catch {
-    boards = [{
-      id: 'waveshare_s3',
-      name: 'Waveshare ESP32-S3-AUDIO',
-      target: 'esp32s3',
-      chip: 'ESP32-S3',
-      description: 'Waveshare AI Smart Speaker / ESP32-S3-AUDIO Board (ES8311 DAC,',
-    }]
+async function loadBoardsForRelease(tag) {
+  selectedBoardId = null
+  boards = []
+  if (!tag) {
+    renderBoards()
+    return
   }
+  const manifest = await loadReleaseManifest(tag)
+  boards = manifest?.boards || []
   if (boards.length === 1) selectedBoardId = boards[0].id
   renderBoards()
 }
 
 function renderBoards() {
   const grid = $('board-grid')
+  const hint = $('board-hint')
+  const none = $('board-none')
   grid.innerHTML = ''
+
+  if (useLocal) {
+    show(hint, false)
+    show(none, false)
+    return
+  }
+
+  const tag = $('release-select').value
+  if (!tag) {
+    show(hint, true)
+    show(none, false)
+    return
+  }
+  show(hint, false)
+
+  if (!boards.length) {
+    show(none, true)
+    none.textContent = releaseManifests.get(tag) === null
+      ? 'Could not load release manifest.'
+      : 'No boards in this release.'
+    return
+  }
+  show(none, false)
+
   for (const b of boards) {
     const selected = b.id === selectedBoardId
     const btn = document.createElement('button')
@@ -60,9 +80,7 @@ function renderBoards() {
       `<p class="mt-1 text-xs ${selected ? 'text-neutral-300' : 'text-neutral-500'}">${b.chip || b.target}${b.description ? ' · ' + b.description : ''}</p>`
     btn.addEventListener('click', () => {
       selectedBoardId = b.id
-      $('release-select').value = ''
       renderBoards()
-      renderFirmwareOptions()
       render()
     })
     grid.appendChild(btn)
@@ -104,7 +122,6 @@ async function fetchGithubReleases() {
   show($('fw-loading'), true)
   show($('fw-none'), false)
   show($('release-select'), false)
-  show($('board-no-fw'), false)
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`)
     if (!res.ok) throw new Error('HTTP ' + res.status)
@@ -112,7 +129,7 @@ async function fetchGithubReleases() {
   } catch {
     githubReleases = []
   }
-  renderFirmwareOptions()
+  await renderFirmwareOptions()
   render()
 }
 
@@ -120,57 +137,54 @@ function stableReleases() {
   return githubReleases.filter(r => !r.prerelease)
 }
 
-function visibleReleases() {
-  const s = stableReleases()
-  return s.length ? s : githubReleases
-}
-
 async function renderFirmwareOptions() {
   show($('fw-loading'), false)
-  const vr = visibleReleases()
-  if (!vr.length) {
+  const releases = stableReleases()
+  if (!releases.length) {
     show($('fw-none'), true)
+    show($('release-select'), false)
+    await loadBoardsForRelease('')
     return
   }
   const sel = $('release-select')
   show(sel, true)
+  show($('fw-none'), false)
+  const prev = sel.value
   while (sel.children.length > 1) sel.removeChild(sel.lastChild)
-  for (const r of vr) {
+  for (const r of releases) {
     const o = document.createElement('option')
     o.value = r.tag_name
-    o.textContent = (r.name || r.tag_name) + (r.prerelease ? ' (preview)' : '')
+    o.textContent = r.name || r.tag_name
     sel.appendChild(o)
   }
-  if (sel.value) await updateBoardFirmwareAvailability(sel.value)
-}
-
-async function updateBoardFirmwareAvailability(tag) {
-  if (!tag || !selectedBoardId) {
-    show($('board-no-fw'), false)
-    return
-  }
-  const manifest = await loadReleaseManifest(tag)
-  if (!manifest) {
-    show($('board-no-fw'), false)
-    return
-  }
-  const hasBoard = (manifest.boards || []).some(b => b.id === selectedBoardId)
-  show($('board-no-fw'), !hasBoard)
+  const latest = releases[0].tag_name
+  if (prev && releases.some(r => r.tag_name === prev)) sel.value = prev
+  else sel.value = latest
+  await loadBoardsForRelease(sel.value)
 }
 
 function fwReady() {
-  if (!selectedBoardId) return false
   if (useLocal) return !!localFile
   const tag = $('release-select').value
-  if (!tag) return false
-  if ($('board-no-fw') && !$('board-no-fw').classList.contains('hidden')) return false
-  return true
+  return !!(tag && selectedBoardId)
 }
 
 function stepState(n) {
-  if (n === 1) return selectedBoardId ? 'done' : 'active'
-  if (n === 2) return !selectedBoardId ? 'locked' : fwReady() ? 'done' : 'active'
-  if (n === 3) return !fwReady() ? 'locked' : 'active'
+  if (useLocal) {
+    if (n === 1) return localFile ? 'done' : 'active'
+    if (n === 2) return localFile ? 'done' : 'locked'
+    if (n === 3) return localFile ? 'active' : 'locked'
+    return 'locked'
+  }
+  if (n === 1) {
+    if (!stableReleases().length) return 'locked'
+    return $('release-select').value ? 'done' : 'active'
+  }
+  if (n === 2) {
+    if (!$('release-select').value) return 'locked'
+    return selectedBoardId ? 'done' : 'active'
+  }
+  if (n === 3) return fwReady() ? 'active' : 'locked'
   return 'locked'
 }
 
@@ -197,6 +211,7 @@ function render() {
   setBadge($('badge2'), s2, 2)
   setBadge($('badge3'), s3, 3)
   $('step2').className = s2 === 'locked' ? stepLockedMid : stepBaseMid
+  show($('step2'), !useLocal)
   $('step3').className = s3 === 'locked' ? stepLockedLast : stepBaseLast
 
   const ready = fwReady()
@@ -220,13 +235,20 @@ function setTab(local) {
   $('tab-local').className = local ? tabOn : tabOff
   show($('fw-release-panel'), !local)
   show($('fw-local-panel'), local)
+  if (local) {
+    selectedBoardId = null
+    boards = []
+  } else {
+    loadBoardsForRelease($('release-select').value).then(render)
+  }
+  renderBoards()
   render()
 }
 
 $('tab-release').addEventListener('click', () => setTab(false))
 $('tab-local').addEventListener('click', () => setTab(true))
 $('release-select').addEventListener('change', async () => {
-  await updateBoardFirmwareAvailability($('release-select').value)
+  await loadBoardsForRelease($('release-select').value)
   render()
 })
 $('erase-row').addEventListener('click', () => { eraseFirst = !eraseFirst; render() })
@@ -433,5 +455,5 @@ $('mon-clear-btn').addEventListener('click', () => { $('monitor-lines').innerHTM
 if (!('serial' in navigator)) show($('serial-warning'), true)
 if (location.protocol === 'file:') setTab(true)
 
-loadBoardCatalog().then(fetchGithubReleases)
+fetchGithubReleases()
 render()

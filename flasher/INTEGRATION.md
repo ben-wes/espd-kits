@@ -6,37 +6,25 @@ Multi-board ready UI in `index.html` + `app.js`.
 
 | Piece | Source |
 |-------|--------|
-| Board catalog | `manifests/boards.json` — from `boards/index.yaml` + `boards/<id>.yaml` |
-| Release manifest | `manifest.json` on each GitHub Release tag |
+| Release list | GitHub Releases API |
+| Board picker | `manifest.json` on the selected release (boards + file URLs) |
 | Firmware binaries | `{board_id}-bootloader.bin`, `{board_id}-espd.bin`, … per release |
 | Deploy | `.github/workflows/pages.yml` → GitHub Pages |
 
 ## Manifest files
 
-**`manifests/boards.json`** (static catalog, copied to Pages):
+**`manifests/boards.json`** — generated catalog from board YAML (used by CI/docs; the flasher does not load it).
 
-```json
-{
-  "boards": [
-    {
-      "id": "waveshare_s3",
-      "name": "Waveshare ESP32-S3-AUDIO",
-      "target": "esp32s3",
-      "chip": "ESP32-S3",
-      "description": "Waveshare AI Smart Speaker / ESP32-S3-AUDIO Board"
-    }
-  ]
-}
-```
+**`manifest.json`** (attached to each release tag — drives the UI):
 
-Board card `description` comes from the first line of `help` in `boards/<id>.yaml` (text before ` (` is dropped). Optional board photo:
+Board metadata in `manifest.json` is generated from `boards/<id>.yaml` (`help` → description). Optional board photo in YAML:
 
 ```yaml
 flasher:
   image: "assets/boards/waveshare_s3.jpg"
 ```
 
-**`manifest.json`** (attached to each release tag):
+Example release manifest:
 
 ```json
 {
@@ -44,10 +32,10 @@ flasher:
   "boards": [
     {
       "id": "waveshare_s3",
-      "name": "…",
+      "name": "Waveshare ESP32-S3-AUDIO",
       "target": "esp32s3",
       "chip": "ESP32-S3",
-      "description": "…",
+      "description": "Waveshare AI Smart Speaker / ESP32-S3-AUDIO Board",
       "files": {
         "bootloader": { "url": "…/waveshare_s3-bootloader.bin", "offset": 0 },
         "partition_table": { "url": "…/waveshare_s3-partition-table.bin", "offset": 32768 },
