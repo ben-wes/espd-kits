@@ -27,17 +27,15 @@
 | `boards/<id>.yaml` (optional) | **espd** | Same schema as **reference** for firmware-only clones |
 | `components/espd_board_*` | **generated** | From YAML at CMake time; gitignored in espd |
 
-**Build env (no copy into submodule):**
+**CI / local build** (ephemeral files under `espd/`, not committed in the submodule):
 
 ```bash
-export ESPD_BOARDS_DIR="/path/to/espd-kits/boards"
-export ESPD_SDKCONFIG_DEFAULTS="/path/to/espd-kits/config/boards/waveshare_s3.select"
+cp boards/waveshare_s3.yaml espd/boards/
+cat config/boards/waveshare_s3.select > espd/sdkconfig.defaults.local
 cd espd && idf.py set-target esp32s3 build
 ```
 
-Requires a recent **espd** with `ESPD_BOARDS_DIR` / `ESPD_SDKCONFIG_DEFAULTS` support (see `espd` `CMakeLists.txt`).
-
-Duplicating a kit YAML into `espd/boards/` is optional (local convenience); **releases** always build from this repo’s `boards/`.
+`build-board.sh` and `build.yml` do this automatically. Requires **espd** with `sdkconfig.defaults.local` in `CMakeLists.txt`.
 
 ## Build pipeline
 
@@ -46,15 +44,15 @@ flowchart LR
   subgraph kits [espd-kits]
     BY[boards/*.yaml]
     SEL[config/boards/*.select]
-    ENV[ESPD_BOARDS_DIR + ESPD_SDKCONFIG_DEFAULTS]
+    LOC[sdkconfig.defaults.local]
   end
   subgraph espd [espd submodule]
     GEN[gen_board_plugins.py]
     IDF[idf.py build]
   end
-  BY --> ENV
-  SEL --> ENV
-  ENV --> GEN
+  BY --> espd
+  SEL --> LOC
+  LOC --> GEN
   GEN --> IDF
   IDF --> ART[dist/BOARD/]
   ART --> REL[GitHub Release]
@@ -63,7 +61,7 @@ flowchart LR
 ```
 
 1. `prepare_espd.sh` — Pd patches only.
-2. `build-board.sh <id>` — sets env vars, `idf.py build` in `espd/`.
+2. `build-board.sh <id>` — writes `.local` + board YAML, `idf.py build` in `espd/`.
 3. Tag release → `generate-manifest.py` → GitHub assets + `releases.json`.
 
 ## Manifest (flasher)
@@ -82,7 +80,7 @@ See `scripts/generate-manifest.py` and [flasher/INTEGRATION.md](../flasher/INTEG
 Done or tracked in upstream:
 
 - Board-neutral `sdkconfig.defaults.esp32s3`
-- `ESPD_BOARDS_DIR`, `ESPD_SDKCONFIG_DEFAULTS`, `sdkconfig.defaults.espd-kits`
+- `sdkconfig.defaults.local` (+ optional `ESPD_BOARDS_DIR` / `ESPD_SDKCONFIG_DEFAULTS` env)
 
 ## Release tagging
 

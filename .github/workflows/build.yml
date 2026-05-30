@@ -15,9 +15,6 @@ jobs:
       fail-fast: false
       matrix:
         board: [waveshare_s3]
-    env:
-      ESPD_BOARDS_DIR: ${{ github.workspace }}/boards
-      ESPD_SDKCONFIG_DEFAULTS: ${{ github.workspace }}/config/boards/${{ matrix.board }}.select
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,15 +26,24 @@ jobs:
       - name: Resolve IDF target
         id: target
         run: |
+          pip install -q pyyaml
           TARGET=$(python3 -c "import yaml; print(yaml.safe_load(open('boards/${{ matrix.board }}.yaml'))['target'])")
           echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
+
+      # esp-idf-ci-action only passes IDF_TARGET into Docker — write overlay in espd/.
+      - name: Prepare sdkconfig.defaults.local
+        run: |
+          cp "boards/${{ matrix.board }}.yaml" "espd/boards/${{ matrix.board }}.yaml"
+          cat "config/boards/${{ matrix.board }}.select" > "espd/sdkconfig.defaults.local"
+          echo "sdkconfig.defaults.local:" && cat espd/sdkconfig.defaults.local
+          test -s espd/sdkconfig.defaults.local
 
       - name: Build firmware
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v6.0.1
           target: ${{ steps.target.outputs.target }}
-          command: idf.py build
+          command: idf.py set-target ${{ steps.target.outputs.target }} build
           path: espd
 
       - name: Collect artifacts

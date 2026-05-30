@@ -40,9 +40,8 @@ fi
 
 "${ROOT}/scripts/prepare_espd.sh"
 
-# Board YAMLs + Kconfig choice without touching the espd submodule tree.
-export ESPD_BOARDS_DIR="${ROOT}/boards"
-export ESPD_SDKCONFIG_DEFAULTS="${SELECT}"
+cp "${YAML}" "${ESPD}/boards/${BOARD_ID}.yaml"
+cat "${SELECT}" > "${ESPD}/sdkconfig.defaults.local"
 
 cd "${ESPD}"
 idf.py set-target "${TARGET}"

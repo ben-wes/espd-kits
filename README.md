@@ -10,7 +10,7 @@ Upstream firmware and Pd core live in the **`espd/`** git submodule. This repo o
 |------|------|
 | [`espd/`](espd/) | ESPD firmware submodule (pinned per release tag on this repo) |
 | [`boards/`](boards/) | Board plugin YAMLs (source of truth; `ESPD_BOARDS_DIR` at build time) |
-| [`config/boards/`](config/boards/) | Per-board `.select` files (`CONFIG_ESPD_BOARD_*=y`) via `ESPD_SDKCONFIG_DEFAULTS` |
+| [`config/boards/`](config/boards/) | Per-board `.select` → copied to `espd/sdkconfig.defaults.local` at build time |
 | [`presets/`](presets/) | Example `config.txt` / patch bundles per use case (optional) |
 | [`flasher/`](flasher/) | Static Web Serial flasher (GitHub Pages) |
 | [`manifests/`](manifests/) | Generated `releases.json` for the flasher |
@@ -46,4 +46,8 @@ Firmware URLs point at **GitHub Release** assets for this repo (or a CDN mirror)
 
 ## Status
 
-Scaffold / planning repo. CI and Pages workflows are wired; first release after submodule pin and a green build.
+CI writes `espd/sdkconfig.defaults.local` before the Docker build (see `build.yml`).
+The **`espd` submodule** must include `sdkconfig.defaults.local` support in `CMakeLists.txt`
+(`espd` `bsp` with neutral chip defaults + local overlay).
+
+If the build log shows `/app/ben-wes/espd` (not `…/espd-kits/espd`), the workflow is on the wrong repo.
