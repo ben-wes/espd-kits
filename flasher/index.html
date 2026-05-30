@@ -20,14 +20,17 @@
     }
   </script>
   <style>
-    #monitor-wrap:fullscreen {
+    #monitor-wrap.mon-expanded {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
       display: flex;
       flex-direction: column;
       background: #fff;
-      padding: 1rem;
+      padding: 1rem 1.5rem;
       box-sizing: border-box;
     }
-    #monitor-wrap:fullscreen #monitor-term {
+    #monitor-wrap.mon-expanded #monitor-term {
       flex: 1;
       min-height: 0;
       height: auto;
@@ -139,14 +142,14 @@
           115200 baud
         </span>
         <button type="button" class="sec-btn ml-auto hidden inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-clear-btn">Clear</button>
-        <button type="button" class="sec-btn hidden inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fullscreen-btn">Fullscreen</button>
+        <button type="button" class="sec-btn hidden inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-expand-btn">Expand log</button>
       </div>
       <div id="monitor-wrap" class="relative hidden">
         <div id="mon-fs-controls" class="mb-3 hidden flex-wrap items-center gap-3 border-b border-neutral-200 pb-3">
           <span class="text-xs font-bold uppercase tracking-[0.12em] text-neutral-500">Serial monitor</span>
           <span class="ml-auto flex flex-wrap items-center gap-3">
             <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-clear">Clear</button>
-            <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-exit">Exit</button>
+            <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-collapse">Collapse</button>
             <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-disc">Disconnect</button>
           </span>
         </div>

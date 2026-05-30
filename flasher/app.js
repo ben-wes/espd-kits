@@ -17,6 +17,20 @@ let monPort = null
 let monReader = null
 let monBuf = ''
 let monFollowLog = true
+let monExpanded = false
+
+function setMonitorExpanded(on) {
+  monExpanded = on
+  $('monitor-wrap').classList.toggle('mon-expanded', on)
+  show($('mon-fs-controls'), on)
+  $('mon-expand-btn').textContent = on ? 'Collapse' : 'Expand log'
+  document.body.classList.toggle('overflow-hidden', on)
+  if (monFollowLog) scrollMonitorToEnd()
+}
+
+function toggleMonitorExpanded() {
+  setMonitorExpanded(!monExpanded)
+}
 
 const $ = id => document.getElementById(id)
 const show = (el, on) => { el.classList.toggle('hidden', !on) }
@@ -397,7 +411,7 @@ function showMonitorConnected() {
   show($('mon-disc-btn'), true)
   show($('mon-status'), true)
   show($('mon-clear-btn'), true)
-  show($('mon-fullscreen-btn'), true)
+  show($('mon-expand-btn'), true)
   show($('monitor-wrap'), true)
   show($('monitor-cursor'), true)
   monFollowLog = true
@@ -405,33 +419,16 @@ function showMonitorConnected() {
 }
 
 function showMonitorDisconnected() {
-  if (document.fullscreenElement === $('monitor-wrap')) {
-    document.exitFullscreen().catch(() => {})
-  }
+  setMonitorExpanded(false)
   show($('mon-connect-btn'), true)
   show($('mon-disc-btn'), false)
   show($('mon-status'), false)
   show($('mon-clear-btn'), false)
-  show($('mon-fullscreen-btn'), false)
+  show($('mon-expand-btn'), false)
   show($('monitor-wrap'), false)
   show($('monitor-cursor'), false)
   show($('mon-scroll-end'), false)
-  show($('mon-fs-controls'), false)
-  $('mon-fullscreen-btn').textContent = 'Fullscreen'
   monFollowLog = true
-}
-
-function updateMonitorFullscreen() {
-  const on = document.fullscreenElement === $('monitor-wrap')
-  show($('mon-fs-controls'), on)
-  $('mon-fullscreen-btn').textContent = on ? 'Exit fullscreen' : 'Fullscreen'
-  if (monFollowLog) scrollMonitorToEnd()
-}
-
-async function toggleMonitorFullscreen() {
-  const wrap = $('monitor-wrap')
-  if (document.fullscreenElement === wrap) await document.exitFullscreen()
-  else await wrap.requestFullscreen()
 }
 
 function isMonitorAtBottom() {
@@ -527,11 +524,13 @@ $('monitor-term').addEventListener('scroll', () => {
   }
 })
 $('mon-scroll-end').addEventListener('click', scrollMonitorToEnd)
-$('mon-fullscreen-btn').addEventListener('click', () => toggleMonitorFullscreen())
-$('mon-fs-exit').addEventListener('click', () => document.exitFullscreen())
+$('mon-expand-btn').addEventListener('click', toggleMonitorExpanded)
+$('mon-fs-collapse').addEventListener('click', () => setMonitorExpanded(false))
 $('mon-fs-clear').addEventListener('click', () => $('mon-clear-btn').click())
 $('mon-fs-disc').addEventListener('click', () => $('mon-disc-btn').click())
-document.addEventListener('fullscreenchange', updateMonitorFullscreen)
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && monExpanded) setMonitorExpanded(false)
+})
 
 if (!('serial' in navigator)) show($('serial-warning'), true)
 if (location.protocol === 'file:') setTab(true)
