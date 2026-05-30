@@ -152,15 +152,17 @@
           <span class="h-1.5 w-1.5 rounded-full bg-green-600"></span>
           115200 baud
         </span>
-        <button type="button" class="sec-btn ml-auto hidden inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-clear-btn">Clear</button>
-        <button type="button" class="sec-btn hidden inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-expand-btn">Expand log</button>
+        <span id="mon-log-actions" class="ml-auto hidden flex flex-wrap items-center gap-3">
+          <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-clear-btn">Clear</button>
+          <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-expand-btn">Expand log</button>
+        </span>
       </div>
       <div id="monitor-wrap" class="relative hidden">
-        <div id="mon-fs-controls" class="mb-3 hidden flex-wrap items-center gap-3 border-b border-neutral-200 pb-3">
+        <div id="mon-fs-controls" class="mb-3 hidden flex flex-wrap items-center gap-3 border-b border-neutral-200 pb-3">
           <span class="text-xs font-bold uppercase tracking-[0.12em] text-neutral-500">Serial monitor</span>
           <span class="ml-auto flex flex-wrap items-center gap-3">
             <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-clear">Clear</button>
-            <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-collapse">Collapse</button>
+            <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-collapse">Collapse log</button>
             <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-fs-disc">Disconnect</button>
           </span>
         </div>

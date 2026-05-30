@@ -50,7 +50,7 @@ function syncCallbacks() {
     onDisconnect: onSyncDisconnect,
     onLine(line, kind) {
       if (kind === 'device') appendLine(line)
-      else syncLog(line)
+      else syncLog(`← ${line}`)
     },
   }
 }
@@ -258,9 +258,23 @@ function setMonitorExpanded(on) {
   monExpanded = on
   $('monitor-wrap').classList.toggle('mon-expanded', on)
   show($('mon-fs-controls'), on)
-  $('mon-expand-btn').textContent = on ? 'Collapse' : 'Expand log'
+  updateExpandLogButton(on)
   document.body.classList.toggle('overflow-hidden', on)
   if (monFollowLog) scrollMonitorToEnd()
+}
+
+const ICON_EXPAND_LOG = '<svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>'
+const ICON_COLLAPSE_LOG = '<svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>'
+
+function expandLogButtonHtml(expanded) {
+  const icon = expanded ? ICON_COLLAPSE_LOG : ICON_EXPAND_LOG
+  const label = expanded ? 'Collapse log' : 'Expand log'
+  return `${icon}<span>${label}</span>`
+}
+
+function updateExpandLogButton(expanded) {
+  $('mon-expand-btn').innerHTML = expandLogButtonHtml(expanded)
+  $('mon-fs-collapse').innerHTML = expandLogButtonHtml(true)
 }
 
 function toggleMonitorExpanded() {
@@ -643,8 +657,7 @@ $('flash-btn').addEventListener('click', async () => {
 
 function showSyncLogPanel() {
   show($('monitor-wrap'), true)
-  show($('mon-clear-btn'), true)
-  show($('mon-expand-btn'), true)
+  show($('mon-log-actions'), true)
   show($('monitor-cursor'), true)
   show($('mon-connect-btn'), false)
   show($('mon-disc-btn'), false)
@@ -655,8 +668,7 @@ function showMonitorConnected() {
   show($('mon-connect-btn'), false)
   show($('mon-disc-btn'), true)
   show($('mon-status'), true)
-  show($('mon-clear-btn'), true)
-  show($('mon-expand-btn'), true)
+  show($('mon-log-actions'), true)
   show($('monitor-wrap'), true)
   show($('monitor-cursor'), true)
   monFollowLog = true
@@ -668,8 +680,7 @@ function showMonitorDisconnected() {
   show($('mon-connect-btn'), true)
   show($('mon-disc-btn'), false)
   show($('mon-status'), false)
-  show($('mon-clear-btn'), false)
-  show($('mon-expand-btn'), false)
+  show($('mon-log-actions'), false)
   show($('monitor-wrap'), false)
   show($('monitor-cursor'), false)
   show($('mon-scroll-end'), false)
@@ -678,7 +689,7 @@ function showMonitorDisconnected() {
 
 function isMonitorAtBottom() {
   const el = $('monitor-term')
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 12
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 24
 }
 
 function scrollMonitorToEnd() {
@@ -686,6 +697,16 @@ function scrollMonitorToEnd() {
   el.scrollTop = el.scrollHeight
   monFollowLog = true
   show($('mon-scroll-end'), false)
+}
+
+function updateMonitorFollowFromScroll() {
+  if (isMonitorAtBottom()) {
+    monFollowLog = true
+    show($('mon-scroll-end'), false)
+  } else {
+    monFollowLog = false
+    show($('mon-scroll-end'), true)
+  }
 }
 
 async function closeMonitor() {
@@ -772,7 +793,7 @@ $('mon-connect-btn').addEventListener('click', async () => {
   } catch (err) {
     appendLine('[Error] ' + (err?.message ?? err))
     show($('monitor-wrap'), true)
-    show($('mon-clear-btn'), true)
+    show($('mon-log-actions'), true)
   }
 })
 
@@ -807,13 +828,13 @@ $('mon-clear-btn').addEventListener('click', () => {
   $('monitor-lines').innerHTML = ''
   scrollMonitorToEnd()
 })
-$('monitor-term').addEventListener('scroll', () => {
-  if (isMonitorAtBottom()) scrollMonitorToEnd()
-  else {
+$('monitor-term').addEventListener('scroll', updateMonitorFollowFromScroll, { passive: true })
+$('monitor-term').addEventListener('wheel', e => {
+  if (e.deltaY < 0) {
     monFollowLog = false
     show($('mon-scroll-end'), true)
   }
-})
+}, { passive: true })
 $('mon-scroll-end').addEventListener('click', scrollMonitorToEnd)
 $('mon-expand-btn').addEventListener('click', toggleMonitorExpanded)
 $('mon-fs-collapse').addEventListener('click', () => setMonitorExpanded(false))
@@ -827,7 +848,7 @@ $('sync-folder-btn').addEventListener('click', async () => {
   if (!window.showDirectoryPicker) {
     syncLog('Folder picker not supported in this browser')
     show($('monitor-wrap'), true)
-    show($('mon-clear-btn'), true)
+    show($('mon-log-actions'), true)
     return
   }
   try {
@@ -849,5 +870,6 @@ $('sync-stop-btn').addEventListener('click', () => stopSync())
 if (!('serial' in navigator)) show($('serial-warning'), true)
 if (location.protocol === 'file:') setTab(true)
 
+updateExpandLogButton(false)
 fetchGithubReleases()
 render()
