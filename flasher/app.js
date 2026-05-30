@@ -391,11 +391,21 @@ $('flash-btn').addEventListener('click', async () => {
   }
 })
 
-function resetMonitorUi() {
+function showMonitorConnected() {
+  show($('mon-connect-btn'), false)
+  show($('mon-disc-btn'), true)
+  show($('mon-status'), true)
+  show($('mon-clear-btn'), true)
+  show($('monitor-term'), true)
+  show($('monitor-cursor'), true)
+}
+
+function showMonitorDisconnected() {
   show($('mon-connect-btn'), true)
-  show($('mon-reset-btn'), false)
   show($('mon-disc-btn'), false)
   show($('mon-status'), false)
+  show($('mon-clear-btn'), false)
+  show($('monitor-term'), false)
   show($('monitor-cursor'), false)
 }
 
@@ -404,9 +414,15 @@ async function closeMonitor() {
   const reader = monReader
   monPort = null
   monReader = null
-  try { await reader?.cancel() } catch (_) {}
-  try { await port?.close() } catch (_) {}
-  resetMonitorUi()
+  monBuf = ''
+  if (reader) {
+    try { await reader.cancel() } catch (_) {}
+    try { reader.releaseLock() } catch (_) {}
+  }
+  if (port) {
+    try { await port.close() } catch (_) {}
+  }
+  showMonitorDisconnected()
 }
 
 function appendLine(text) {
@@ -419,17 +435,13 @@ function appendLine(text) {
 }
 
 $('mon-connect-btn').addEventListener('click', async () => {
+  if (monPort) return
   try {
     const port = await navigator.serial.requestPort()
     await port.open({ baudRate: 115200 })
-    monPort = port; monBuf = ''
-    show($('mon-connect-btn'), false)
-    show($('mon-reset-btn'), true)
-    show($('mon-disc-btn'), true)
-    show($('mon-status'), true)
-    show($('mon-clear-btn'), true)
-    show($('monitor-term'), true)
-    show($('monitor-cursor'), true)
+    monPort = port
+    monBuf = ''
+    showMonitorConnected()
     readMonitor(port)
   } catch (err) {
     appendLine('[Error] ' + (err?.message ?? err))
@@ -439,14 +451,14 @@ $('mon-connect-btn').addEventListener('click', async () => {
 })
 
 async function readMonitor(port) {
-  const decoder = new TextDecoderStream()
-  port.readable.pipeTo(decoder.writable).catch(() => {})
-  monReader = decoder.readable.getReader()
+  const reader = port.readable.getReader()
+  monReader = reader
+  const decoder = new TextDecoder()
   try {
-    while (true) {
-      const { value, done } = await monReader.read()
+    while (monPort === port) {
+      const { value, done } = await reader.read()
       if (done) break
-      monBuf += value
+      monBuf += decoder.decode(value, { stream: true })
       let idx
       while ((idx = monBuf.indexOf('\n')) !== -1) {
         appendLine(monBuf.slice(0, idx).replace(/\r$/, ''))
@@ -455,26 +467,16 @@ async function readMonitor(port) {
     }
   } catch (_) {}
   finally {
-    monReader = null
+    try { reader.releaseLock() } catch (_) {}
+    if (monReader === reader) monReader = null
     if (monPort === port) {
       monPort = null
-      resetMonitorUi()
+      showMonitorDisconnected()
     }
   }
 }
 
-$('mon-reset-btn').addEventListener('click', async () => {
-  if (!monPort) return
-  try {
-    await monPort.setSignals({ dataTerminalReady: false, requestToSend: true })
-    await new Promise(r => setTimeout(r, 100))
-    await monPort.setSignals({ dataTerminalReady: true, requestToSend: false })
-  } catch (err) {
-    appendLine('[Reset error] ' + (err?.message ?? err))
-    await closeMonitor()
-  }
-})
-$('mon-disc-btn').addEventListener('click', () => closeMonitor())
+$('mon-disc-btn').addEventListener('click', async () => { await closeMonitor() })
 $('mon-clear-btn').addEventListener('click', () => { $('monitor-lines').innerHTML = '' })
 
 if (!('serial' in navigator)) show($('serial-warning'), true)

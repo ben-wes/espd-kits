@@ -116,10 +116,9 @@
 
     <section class="mt-16 border-t border-neutral-200 pt-8">
       <h3 class="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-neutral-400">Serial monitor</h3>
-      <p class="mb-5 text-sm text-neutral-500">Optional — after flashing, open the port again to read the boot log. Flashing and monitoring use separate connections (the flasher releases the port when done).</p>
+      <p class="mb-5 text-sm text-neutral-500">Optional — after flashing, open the port again to read the boot log. Use the board’s RESET button to reboot. Flashing and monitoring use separate connections.</p>
       <div class="mb-3 flex flex-wrap items-center gap-3">
         <button type="button" class="sec-btn inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-connect-btn">Open monitor</button>
-        <button type="button" class="sec-btn hidden inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-reset-btn">Reset</button>
         <button type="button" class="sec-btn hidden inline-flex items-center gap-2 border border-neutral-300 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-disc-btn">Disconnect</button>
         <span id="mon-status" class="hidden flex items-center gap-1.5 text-xs text-neutral-400">
           <span class="h-1.5 w-1.5 rounded-full bg-green-600"></span>
