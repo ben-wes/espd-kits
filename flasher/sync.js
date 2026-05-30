@@ -61,6 +61,39 @@ export async function readFileBytes(dirHandle, rel) {
   return new Uint8Array(await file.arrayBuffer())
 }
 
+export async function collectSyncMtimes(dirHandle, includeAssets = true, prefix = '') {
+  const out = new Map()
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (name.startsWith('.')) continue
+    const rel = prefix + name
+    if (handle.kind === 'file') {
+      if (syncNameOk(name, includeAssets)) {
+        const file = await handle.getFile()
+        out.set(rel, file.lastModified)
+      }
+    } else if (handle.kind === 'directory') {
+      for (const [k, v] of await collectSyncMtimes(handle, includeAssets, rel + '/')) out.set(k, v)
+    }
+  }
+  return out
+}
+
+export async function ensurePortOpen(port) {
+  if (port.readable && port.writable) return
+  try {
+    await port.open({ baudRate: 115200 })
+  } catch (e) {
+    const msg = String(e.message || e)
+    if (msg.includes('already open')) {
+      try { await port.close() } catch (_) {}
+      await sleep(200)
+      await port.open({ baudRate: 115200 })
+    } else {
+      throw e
+    }
+  }
+}
+
 function syncOrder(rel) {
   if (rel === 'main.pd') return [2, rel]
   if (rel.endsWith('.pd') || rel === 'config.txt') return [1, rel]
@@ -68,10 +101,11 @@ function syncOrder(rel) {
 }
 
 export class EspdSyncClient {
-  constructor(port, { onLine, onLog } = {}) {
+  constructor(port, { onLine, onLog, onDisconnect } = {}) {
     this.port = port
     this.onLine = onLine || (() => {})
     this.onLog = onLog || (() => {})
+    this.onDisconnect = onDisconnect || (() => {})
     this.reader = null
     this.writer = null
     this.stopped = false
@@ -86,10 +120,14 @@ export class EspdSyncClient {
   }
 
   async open() {
-    if (!this.port.readable || !this.port.writable) {
-      await this.port.open({ baudRate: 115200 })
-    }
+    await ensurePortOpen(this.port)
     await this.port.setSignals?.({ dataTerminalReady: true, requestToSend: true }).catch(() => {})
+    if (this.reader) {
+      try { this.reader.releaseLock() } catch (_) {}
+    }
+    if (this.writer) {
+      try { await this.writer.close() } catch (_) {}
+    }
     this.writer = this.port.writable.getWriter()
     this.reader = this.port.readable.getReader()
     this.stopped = false
@@ -99,10 +137,14 @@ export class EspdSyncClient {
 
   async close() {
     this.stopped = true
+    if (this.pendingReply) {
+      this.pendingReply = null
+    }
     try { await this.reader?.cancel() } catch (_) {}
     try { this.reader?.releaseLock() } catch (_) {}
     this.reader = null
     try { await this.writer?.close() } catch (_) {}
+    try { this.writer?.releaseLock?.() } catch (_) {}
     this.writer = null
     try { await this.port.close() } catch (_) {}
   }
@@ -143,6 +185,9 @@ export class EspdSyncClient {
         }
       }
     } catch (_) {}
+    finally {
+      if (!this.stopped) this.onDisconnect()
+    }
   }
 
   _waitReply(timeoutMs) {
@@ -252,7 +297,7 @@ export async function openAuthorizedPort() {
   const ports = await navigator.serial.getPorts()
   for (const port of ports) {
     try {
-      await port.open({ baudRate: 115200 })
+      await ensurePortOpen(port)
       return port
     } catch (_) {
       try { await port.close() } catch (_) {}
@@ -357,6 +402,13 @@ export async function connectAndPrepare(requestPort, callbacks) {
   return client
 }
 
+export async function reconnectPrepared(client, callbacks) {
+  const info = await client.status()
+  if (info.sdcard === 'yes' && info.mode !== 'msc_sync') return client
+  if (info.mode === 'msc_sync' && info.internal === 'yes') return client
+  return prepareForSync(client, callbacks)
+}
+
 export async function syncFileList(client, dirHandle, rels, onLog, reconnect) {
   let reloadNeeded = false
   let resetNeeded = false
@@ -388,12 +440,14 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect) {
           onLog?.(`disconnect during PUT ${rel}; reconnecting…`)
           await client.close().catch(() => {})
           client = await reconnect()
+          client = await reconnectPrepared(client, { onLog })
           continue
         }
         if (/not mounted|crc/i.test(msg)) {
           onLog?.(`${msg}; reconnecting…`)
           await client.close().catch(() => {})
           client = await reconnect()
+          client = await reconnectPrepared(client, { onLog })
           continue
         }
         throw e
@@ -406,6 +460,7 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect) {
     try { await client.resetDevice() } catch (_) {}
     await client.close().catch(() => {})
     client = await reconnect()
+    client = await reconnectPrepared(client, { onLog })
   } else if (reloadNeeded) {
     onLog?.('RELOAD')
     try { await client.reload() } catch (_) {

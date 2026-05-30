@@ -1,7 +1,9 @@
 import { ESPLoader, Transport } from 'https://cdn.jsdelivr.net/npm/esptool-js@0.5.4/bundle.js'
 import {
   collectSyncFiles,
+  collectSyncMtimes,
   connectAndPrepare,
+  reconnectPrepared,
   requestSerialPort,
   sleep,
   syncFileList,
@@ -33,6 +35,10 @@ let syncClient = null
 let syncBusy = false
 let syncObserver = null
 let syncDebounceTimer = null
+let syncPollTimer = null
+let syncMtimes = new Map()
+let syncWatchPaused = false
+let syncReconnecting = false
 
 function syncLog(msg) {
   appendLine(`[sync] ${msg}`)
@@ -41,6 +47,7 @@ function syncLog(msg) {
 function syncCallbacks() {
   return {
     onLog: syncLog,
+    onDisconnect: onSyncDisconnect,
     onLine(line, kind) {
       if (kind === 'device') appendLine(line)
       else syncLog(line)
@@ -48,13 +55,67 @@ function syncCallbacks() {
   }
 }
 
+function onSyncDisconnect() {
+  if (syncReconnecting) return
+  syncLog('device disconnected')
+  syncClient = null
+  syncBusy = false
+  stopSyncWatch()
+  setSyncUi(false)
+  $('sync-status').textContent = 'Disconnected — Connect & sync again'
+}
+
+function stopSyncWatch() {
+  if (syncObserver) {
+    try { syncObserver.disconnect() } catch (_) {}
+    syncObserver = null
+  }
+  if (syncDebounceTimer) {
+    clearTimeout(syncDebounceTimer)
+    syncDebounceTimer = null
+  }
+  if (syncPollTimer) {
+    clearInterval(syncPollTimer)
+    syncPollTimer = null
+  }
+}
+
+async function refreshSyncMtimes() {
+  if (!syncDirHandle) return
+  const includeAssets = $('sync-assets').checked
+  syncMtimes = await collectSyncMtimes(syncDirHandle, includeAssets)
+}
+
+async function collectChangedRels() {
+  if (!syncDirHandle) return []
+  const includeAssets = $('sync-assets').checked
+  const current = await collectSyncMtimes(syncDirHandle, includeAssets)
+  const changed = []
+  for (const [rel, mtime] of current) {
+    if (syncMtimes.get(rel) !== mtime) changed.push(rel)
+  }
+  return changed
+}
+
+function setWatchingStatus() {
+  if (!syncClient) return
+  const n = syncMtimes.size
+  $('sync-status').textContent = syncObserver || syncPollTimer
+    ? `Watching ${n} file${n === 1 ? '' : 's'} for changes`
+    : `Connected · use Sync now after saves`
+}
+
 async function reconnectSync() {
+  syncReconnecting = true
   const cb = syncCallbacks()
   try {
-    return await waitForAuthorizedPort(60000, cb)
+    let client = await waitForAuthorizedPort(60000, cb)
+    return await reconnectPrepared(client, cb)
   } catch (_) {
     syncLog('Pick the USB port again (reboot / re-enumeration)')
     return connectAndPrepare(requestSerialPort, cb)
+  } finally {
+    syncReconnecting = false
   }
 }
 
@@ -69,36 +130,35 @@ function setSyncUi(connected) {
 }
 
 async function stopSync() {
-  if (syncObserver) {
-    try { syncObserver.disconnect() } catch (_) {}
-    syncObserver = null
-  }
-  if (syncDebounceTimer) {
-    clearTimeout(syncDebounceTimer)
-    syncDebounceTimer = null
-  }
+  stopSyncWatch()
   if (syncClient) {
     await syncClient.close().catch(() => {})
     syncClient = null
   }
+  syncMtimes.clear()
+  syncBusy = false
   setSyncUi(false)
   $('sync-status').textContent = syncDirHandle ? 'Stopped' : ''
   setMonitorExpanded(false)
   showMonitorDisconnected()
 }
 
-async function runSync(label) {
+async function runSync(label, onlyRels = null) {
   if (!syncDirHandle || !syncClient || syncBusy) return
   syncBusy = true
+  syncWatchPaused = true
+  stopSyncWatch()
   setSyncUi(true)
+  $('sync-status').textContent = 'Syncing…'
   try {
     const includeAssets = $('sync-assets').checked
-    const rels = await collectSyncFiles(syncDirHandle, includeAssets)
+    let rels = onlyRels
+    if (!rels) rels = await collectSyncFiles(syncDirHandle, includeAssets)
     if (!rels.length) {
-      syncLog(`${label}: nothing to send`)
+      if (label !== 'watch') syncLog(`${label}: nothing to send`)
       return
     }
-    syncLog(`${label} (${rels.length} files)`)
+    syncLog(`${label} (${rels.length} file${rels.length === 1 ? '' : 's'})`)
     syncClient = await syncFileList(
       syncClient,
       syncDirHandle,
@@ -106,48 +166,83 @@ async function runSync(label) {
       syncLog,
       reconnectSync,
     )
-    const info = await syncClient.status()
-    $('sync-status').textContent = `Synced to ${syncStorePath(info)} · mode=${info.mode}`
+    await refreshSyncMtimes()
+    if (syncClient) await syncClient.status().catch(() => {})
+    setWatchingStatus()
   } catch (e) {
     syncLog(`error: ${e.message || e}`)
+    if (!syncClient) $('sync-status').textContent = 'Disconnected — Connect & sync again'
   } finally {
     syncBusy = false
+    syncWatchPaused = false
     setSyncUi(!!syncClient)
+    if (syncClient) resumeSyncWatch()
   }
 }
 
-async function startSyncWatch() {
-  if (!('FileSystemObserver' in window) || !syncDirHandle) {
-    show($('sync-watch-hint'), !!syncDirHandle)
-    return
+async function resumeSyncWatch() {
+  if (!syncDirHandle || !syncClient) return
+  if ('FileSystemObserver' in window) {
+    if (!syncObserver) await startFileObserver()
+  } else if (!syncPollTimer) {
+    startSyncPoll()
   }
-  show($('sync-watch-hint'), false)
-  syncObserver = new FileSystemObserver(records => {
-    if (syncBusy || !syncClient) return
-    const relevant = records.some(r => r.type === 'modified' || r.type === 'appeared')
-    if (!relevant) return
+  setWatchingStatus()
+}
+
+async function startFileObserver() {
+  if (syncObserver) return
+  syncObserver = new FileSystemObserver(() => {
+    if (syncWatchPaused || syncBusy || !syncClient) return
     if (syncDebounceTimer) clearTimeout(syncDebounceTimer)
-    syncDebounceTimer = setTimeout(() => runSync('watch'), 350)
+    syncDebounceTimer = setTimeout(async () => {
+      const changed = await collectChangedRels()
+      if (!changed.length || syncBusy || !syncClient) return
+      await runSync('watch', changed)
+    }, 350)
   })
   await syncObserver.observe(syncDirHandle, { recursive: true })
+  show($('sync-watch-hint'), false)
+}
+
+function startSyncPoll() {
+  show($('sync-watch-hint'), true)
+  $('sync-watch-hint').textContent = 'Polling folder every 1.5s for changes (FileSystemObserver unavailable).'
+  syncPollTimer = setInterval(async () => {
+    if (syncWatchPaused || syncBusy || !syncClient) return
+    const changed = await collectChangedRels()
+    if (!changed.length) return
+    await runSync('watch', changed)
+  }, 1500)
+}
+
+async function startSyncWatch() {
+  if (!syncDirHandle || !syncClient) return
+  await refreshSyncMtimes()
+  if ('FileSystemObserver' in window) {
+    await startFileObserver()
+  } else {
+    startSyncPoll()
+  }
+  setWatchingStatus()
 }
 
 async function startPatchSync() {
   if (!syncDirHandle || syncBusy) return
-  if (syncClient || monPort) await stopSync()
+  await stopSync()
   if (monPort) await closeMonitor()
   syncBusy = true
   setSyncUi(true)
   showSyncLogPanel()
   monFollowLog = true
+  $('sync-status').textContent = 'Connecting…'
   try {
     syncLog('connecting…')
     syncClient = await connectAndPrepare(requestSerialPort, syncCallbacks())
     const info = await syncClient.status()
-    $('sync-status').textContent = `Connected · target ${syncStorePath(info)} · mode=${info.mode}`
+    $('sync-status').textContent = `Connected · target ${syncStorePath(info)}`
     syncBusy = false
     await runSync('initial sync')
-    await startSyncWatch()
   } catch (e) {
     syncLog(`connect failed: ${e.message || e}`)
     await stopSync()
