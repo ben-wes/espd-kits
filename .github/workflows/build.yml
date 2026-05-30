@@ -15,35 +15,28 @@ jobs:
       fail-fast: false
       matrix:
         board: [waveshare_s3]
+    env:
+      ESPD_BOARDS_DIR: ${{ github.workspace }}/boards
+      ESPD_SDKCONFIG_DEFAULTS: ${{ github.workspace }}/config/boards/${{ matrix.board }}.select
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Append board Kconfig choice (ephemeral)
-        run: |
-          BOARD="${{ matrix.board }}"
-          TARGET=$(python3 -c "import yaml; print(yaml.safe_load(open('boards/${BOARD}.yaml'))['target'])")
-          MARKER="# espd-kits board select (${BOARD})"
-          DEFAULTS="espd/sdkconfig.defaults.${TARGET}"
-          if ! grep -qF "$MARKER" "$DEFAULTS"; then
-            { echo ""; echo "$MARKER"; cat "config/boards/${BOARD}.select"; } >> "$DEFAULTS"
-          fi
+      - name: Apply Pd patches
+        run: ./espd/scripts/apply-pd-patches.sh
 
-      - name: Sync boards into espd
+      - name: Resolve IDF target
+        id: target
         run: |
-          for f in boards/*.yaml; do
-            base=$(basename "$f")
-            [[ "$base" == "index.yaml" ]] && continue
-            cp -f "$f" "espd/boards/$base"
-          done
-          ./espd/scripts/apply-pd-patches.sh
+          TARGET=$(python3 -c "import yaml; print(yaml.safe_load(open('boards/${{ matrix.board }}.yaml'))['target'])")
+          echo "target=${TARGET}" >> "$GITHUB_OUTPUT"
 
       - name: Build firmware
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v6.0.1
-          target: esp32s3
+          target: ${{ steps.target.outputs.target }}
           command: idf.py build
           path: espd
 
@@ -61,7 +54,7 @@ jobs:
           name: espd-kit-${{ matrix.board }}-${{ github.sha }}
           path: dist/${{ matrix.board }}/
 
-      - name: Generate manifest snippet
+      - name: Generate manifest
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           pip install pyyaml

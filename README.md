@@ -9,8 +9,8 @@ Upstream firmware and Pd core live in the **`espd/`** git submodule. This repo o
 | Path | Role |
 |------|------|
 | [`espd/`](espd/) | ESPD firmware submodule (pinned per release tag on this repo) |
-| [`boards/`](boards/) | Board plugin YAMLs → copied into `espd/boards/` before build |
-| [`config/boards/`](config/boards/) | Per-board `sdkconfig` snippets (Kconfig choice) for non-interactive CI |
+| [`boards/`](boards/) | Board plugin YAMLs (source of truth; `ESPD_BOARDS_DIR` at build time) |
+| [`config/boards/`](config/boards/) | Per-board `.select` files (`CONFIG_ESPD_BOARD_*=y`) via `ESPD_SDKCONFIG_DEFAULTS` |
 | [`presets/`](presets/) | Example `config.txt` / patch bundles per use case (optional) |
 | [`flasher/`](flasher/) | Static Web Serial flasher (GitHub Pages) |
 | [`manifests/`](manifests/) | Generated `releases.json` for the flasher |
@@ -35,7 +35,7 @@ cd espd-kits
 
 ## Web flasher
 
-GitHub Pages serves [`flasher/`](flasher/). It loads [`manifests/releases.json`](manifests/releases.json) (generated on release) and flashes via **Web Serial** (Chrome / Edge desktop), similar to [ESPD Web Flasher](https://flasher.michaelkramer.at/).
+GitHub Pages will serve the vendored UI in [`flasher/`](flasher/) (see [flasher/INTEGRATION.md](flasher/INTEGRATION.md)). Today that is a stub; production UI lives at [ESPD Web Flasher](https://flasher.michaelkramer.at/) until source is integrated. Manifest: [`manifests/releases.json`](manifests/releases.json).
 
 Firmware URLs point at **GitHub Release** assets for this repo (or a CDN mirror).
 

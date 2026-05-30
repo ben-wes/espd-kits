@@ -19,7 +19,7 @@ if [[ ! -f "${YAML}" ]]; then
   exit 1
 fi
 if [[ ! -f "${SELECT}" ]]; then
-  echo "missing ${SELECT} (Kconfig board choice for CI)" >&2
+  echo "missing ${SELECT} (Kconfig board choice)" >&2
   exit 1
 fi
 
@@ -29,7 +29,7 @@ if ! command -v idf.py &>/dev/null; then
 fi
 
 TARGET="$(python3 -c "
-import yaml, sys
+import yaml
 d = yaml.safe_load(open('${YAML}'))
 print(d.get('target', ''))
 ")"
@@ -40,21 +40,9 @@ fi
 
 "${ROOT}/scripts/prepare_espd.sh"
 
-DEFAULTS="${ESPD}/sdkconfig.defaults.${TARGET}"
-if [[ ! -f "${DEFAULTS}" ]]; then
-  echo "missing ${DEFAULTS} in espd" >&2
-  exit 1
-fi
-
-# Ephemeral board choice for this build (do not commit into espd submodule).
-MARKER="# espd-kits board select (${BOARD_ID})"
-if ! grep -qF "${MARKER}" "${DEFAULTS}" 2>/dev/null; then
-  {
-    echo ""
-    echo "${MARKER}"
-    cat "${SELECT}"
-  } >> "${DEFAULTS}"
-fi
+# Board YAMLs + Kconfig choice without touching the espd submodule tree.
+export ESPD_BOARDS_DIR="${ROOT}/boards"
+export ESPD_SDKCONFIG_DEFAULTS="${SELECT}"
 
 cd "${ESPD}"
 idf.py set-target "${TARGET}"

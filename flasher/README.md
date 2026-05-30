@@ -1,13 +1,14 @@
 # Web flasher
 
-Static site deployed to **GitHub Pages** from this directory.
+Deployed to **GitHub Pages** from this directory.
 
-- Loads **`../manifests/releases.json`** (copied into `flasher/manifests/` on release by CI, or served from repo root on Pages with base path adjustment).
-- Reference implementation: [ESPD Web Flasher](https://flasher.michaelkramer.at/) (Web Serial + esptool-js pattern).
+- **Integration plan:** [INTEGRATION.md](INTEGRATION.md)
+- **Reference UI:** [flasher.michaelkramer.at](https://flasher.michaelkramer.at/) (source repo not public — provide tree to vendor here)
+- **Manifest:** `manifests/releases.json` (copied here on release by CI)
 
 ## Local preview
 
 ```bash
+mkdir -p flasher/manifests && cp manifests/releases.json flasher/manifests/
 python3 -m http.server 8080 --directory flasher
-# open http://localhost:8080/ — manifest fetch may need copying manifests/ into flasher/
 ```
