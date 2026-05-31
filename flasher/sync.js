@@ -357,6 +357,22 @@ export async function requestSerialPort() {
   return navigator.serial.requestPort()
 }
 
+export async function openMonitorPort() {
+  const ports = await navigator.serial.getPorts()
+  for (const port of ports) {
+    try {
+      try { await port.close() } catch (_) {}
+      await sleep(200)
+      await port.open({ baudRate: 115200 })
+      await port.setSignals?.({ dataTerminalReady: true, requestToSend: true }).catch(() => {})
+      return port
+    } catch (_) {
+      try { await port.close() } catch (_) {}
+    }
+  }
+  return null
+}
+
 export async function openAuthorizedPort() {
   const ports = await navigator.serial.getPorts()
   for (const port of ports) {

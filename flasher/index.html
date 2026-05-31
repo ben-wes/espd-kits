@@ -182,10 +182,13 @@
           </div>
           <button type="button" id="mon-scroll-end" class="absolute bottom-3 right-3 z-10 hidden border border-neutral-300 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-700 shadow-sm transition hover:border-black hover:text-black" aria-label="Jump to latest log lines">Latest ↓</button>
         </div>
-        <form id="mon-pd-send" class="mt-3 hidden flex gap-2">
-          <input type="text" id="mon-pd-input" maxlength="220" autocomplete="off" spellcheck="false" placeholder="Pd message, e.g. pd dsp 1" class="min-w-0 flex-1 border border-neutral-300 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-black" />
-          <button type="submit" class="sec-btn shrink-0 border border-neutral-300 px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-pd-btn">Send</button>
-        </form>
+        <div id="mon-pd-wrap" class="mt-3 hidden">
+          <form id="mon-pd-send" class="flex gap-2">
+            <input type="text" id="mon-pd-input" maxlength="220" autocomplete="off" spellcheck="false" placeholder="Pd message, e.g. pd dsp 1" class="min-w-0 flex-1 border border-neutral-300 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-black" />
+            <button type="submit" class="sec-btn shrink-0 border border-neutral-300 px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black" id="mon-pd-btn">Send</button>
+          </form>
+          <p class="mt-1.5 text-xs text-neutral-400">↑ ↓ to recall previous messages</p>
+        </div>
       </div>
     </section>
 

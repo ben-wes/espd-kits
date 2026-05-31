@@ -4,6 +4,7 @@ import {
   collectSyncMtimes,
   connectAndPrepare,
   openAuthorizedPort,
+  openMonitorPort,
   reconnectPrepared,
   requestSerialPort,
   sleep,
@@ -123,25 +124,34 @@ function kickMonitorMaintainer() {
   if (!monWanted || syncClient) return
   const gen = ++monMaintainerGen
   ;(async () => {
+    let announcedWait = false
     while (monWanted && !syncClient && gen === monMaintainerGen) {
-      if (monPort) {
-        await sleep(400)
+      updateMonitorToolbar()
+      const port = await openMonitorPort()
+      if (!port || !monWanted || syncClient || gen !== monMaintainerGen) {
+        if (!announcedWait) {
+          syncLog('waiting for serial port…')
+          announcedWait = true
+        }
+        await sleep(500)
         continue
       }
+      announcedWait = false
+      monPort = port
+      monBuf = ''
+      monFollowLog = true
       updateMonitorToolbar()
-      const port = await openAuthorizedPort()
-      if (port && monWanted && !syncClient && gen === monMaintainerGen) {
-        try {
-          monPort = port
-          monBuf = ''
-          updateMonitorToolbar()
-          readMonitor(port)
-          return
-        } catch (_) {
-          try { await port.close() } catch (_) {}
-        }
+      try {
+        await readMonitorLoop(port)
+      } finally {
+        monPort = null
+        try { await port.close() } catch (_) {}
+        updateMonitorToolbar()
       }
-      await sleep(500)
+      if (monWanted && !syncClient && gen === monMaintainerGen) {
+        syncLog('port closed — waiting to reconnect…')
+        announcedWait = false
+      }
     }
   })()
 }
@@ -764,20 +774,12 @@ function updateMonitorToolbar() {
   show($('mon-log-actions'), logOpen)
   show($('monitor-wrap'), logOpen)
   show($('monitor-cursor'), logOpen && (monitoring || !!syncClient))
-  show($('mon-pd-send'), logOpen && canSendPd)
+  show($('mon-pd-wrap'), logOpen && canSendPd)
   $('mon-pd-btn').disabled = syncBusy
   $('mon-pd-input').disabled = syncBusy
 }
 
 function showSyncLogPanel() {
-  updateMonitorToolbar()
-}
-
-function showMonitorConnected() {
-  if (syncClient) return
-  monLogOpen = false
-  monFollowLog = true
-  show($('mon-scroll-end'), false)
   updateMonitorToolbar()
 }
 
@@ -938,27 +940,26 @@ function appendLine(text, source) {
 
 $('mon-connect-btn').addEventListener('click', async () => {
   if (monPort || syncClient) return
-  monWanted = true
   try {
-    const port = await navigator.serial.requestPort()
-    await port.open({ baudRate: 115200 })
-    monPort = port
-    monBuf = ''
-    showMonitorConnected()
-    readMonitor(port)
+    monWanted = true
+    await navigator.serial.requestPort()
+    monLogOpen = false
+    updateMonitorToolbar()
+    kickMonitorMaintainer()
   } catch (err) {
+    monWanted = false
     appendLine('[Error] ' + (err?.message ?? err))
     monLogOpen = true
     updateMonitorToolbar()
   }
 })
 
-async function readMonitor(port) {
+async function readMonitorLoop(port) {
   const reader = port.readable.getReader()
   monReader = reader
   const decoder = new TextDecoder()
   try {
-    while (monPort === port) {
+    while (monPort === port && monWanted) {
       const { value, done } = await reader.read()
       if (done) break
       monBuf += decoder.decode(value, { stream: true })
@@ -970,18 +971,9 @@ async function readMonitor(port) {
     }
   } catch (_) {}
   finally {
+    try { await reader.cancel() } catch (_) {}
     try { reader.releaseLock() } catch (_) {}
     if (monReader === reader) monReader = null
-    if (monPort === port) {
-      monPort = null
-      try { await port.close() } catch (_) {}
-    }
-    if (monWanted && !syncClient) {
-      syncLog('port closed — waiting to reconnect…')
-      kickMonitorMaintainer()
-    } else if (!monWanted) {
-      showMonitorDisconnected()
-    }
   }
 }
 
@@ -1046,5 +1038,11 @@ if (!('serial' in navigator)) show($('serial-warning'), true)
 if (location.protocol === 'file:') setTab(true)
 
 updateExpandLogButton(false)
+if ('serial' in navigator) {
+  navigator.serial.addEventListener('connect', () => {
+    if (monWanted && !monPort && !syncClient) kickMonitorMaintainer()
+    if (syncWanted && !syncClient && !syncBusy) kickSyncMaintainer()
+  })
+}
 fetchGithubReleases()
 render()
