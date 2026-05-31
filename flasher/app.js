@@ -52,6 +52,8 @@ let monMaintainerActive = false
 let monWakeWait = null
 let monPipeAbort = null
 let monConnecting = false
+let monActivityTimer = null
+const MON_CURSOR_IDLE_MS = 1200
 let pdMsgHistory = []
 let pdHistoryIdx = 0
 let pdHistoryDraft = ''
@@ -134,6 +136,23 @@ function wakeMonitorMaintainer() {
     monWakeWait()
     monWakeWait = null
   }
+}
+
+function noteMonitorActivity() {
+  show($('monitor-cursor'), true)
+  if (monActivityTimer) clearTimeout(monActivityTimer)
+  monActivityTimer = setTimeout(() => {
+    monActivityTimer = null
+    show($('monitor-cursor'), false)
+  }, MON_CURSOR_IDLE_MS)
+}
+
+function clearMonitorCursor() {
+  if (monActivityTimer) {
+    clearTimeout(monActivityTimer)
+    monActivityTimer = null
+  }
+  show($('monitor-cursor'), false)
 }
 
 function flushMonBuf() {
@@ -850,7 +869,7 @@ function updateMonitorToolbar() {
   show($('mon-log-actions'), logOpen)
   show($('monitor-wrap'), logOpen)
   show($('mon-toolbar'), logOpen && !monExpanded)
-  show($('monitor-cursor'), logOpen && (monitoring || !!syncClient))
+  if (!logOpen) clearMonitorCursor()
   show($('mon-pd-wrap'), logOpen && canSendPd)
   $('mon-pd-btn').disabled = syncBusy
   $('mon-pd-input').disabled = syncBusy
@@ -863,6 +882,7 @@ function showSyncLogPanel() {
 function showMonitorDisconnected() {
   monLogOpen = false
   setMonitorExpanded(false)
+  clearMonitorCursor()
   show($('mon-scroll-end'), false)
   monFollowLog = true
   updateMonitorToolbar()
@@ -1028,6 +1048,7 @@ function appendLine(text, source) {
   $('monitor-lines').appendChild(div)
   while ($('monitor-lines').children.length > 500)
     $('monitor-lines').removeChild($('monitor-lines').firstChild)
+  if (source !== 'sync') noteMonitorActivity()
   if (monFollowLog) scrollMonitorToEnd()
   else show($('mon-scroll-end'), true)
 }
@@ -1064,6 +1085,7 @@ async function readMonitorLoop(port) {
     while (monPort === port && monWanted) {
       const { value, done } = await reader.read()
       if (done) break
+      if (value) noteMonitorActivity()
       monBuf += value ?? ''
       flushMonBuf()
     }
@@ -1080,6 +1102,7 @@ async function readMonitorLoop(port) {
 $('mon-disc-btn').addEventListener('click', async () => { await closeMonitor() })
 $('mon-clear-btn').addEventListener('click', () => {
   $('monitor-lines').innerHTML = ''
+  clearMonitorCursor()
   scrollMonitorToEnd()
 })
 $('monitor-term').addEventListener('scroll', updateMonitorFollowFromScroll, { passive: true })
