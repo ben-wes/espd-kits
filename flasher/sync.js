@@ -357,36 +357,38 @@ export async function requestSerialPort() {
   return navigator.serial.requestPort()
 }
 
-async function orderedPorts(preferred) {
-  const all = await navigator.serial.getPorts()
-  if (!preferred) return all
-  return [preferred, ...all.filter(p => p !== preferred)]
-}
-
-async function openPortFresh(port, timeoutMs) {
+async function openPortFresh(port, timeoutMs, isAlive = () => true) {
+  if (!isAlive()) throw new Error('aborted')
   try { await port.close() } catch (_) {}
-  await sleep(400)
+  await sleep(300)
+  if (!isAlive()) throw new Error('aborted')
   let timer
+  const abortWait = (async () => {
+    while (isAlive()) await sleep(100)
+    throw new Error('aborted')
+  })()
   try {
     await Promise.race([
       port.open({ baudRate: 115200 }),
       new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error('open timeout')), timeoutMs)
       }),
+      abortWait,
     ])
   } finally {
     clearTimeout(timer)
   }
   await port.setSignals?.({ dataTerminalReady: true, requestToSend: true }).catch(() => {})
-  await sleep(300)
+  await sleep(200)
 }
 
-async function sniffMonitorData(port, maxMs) {
+async function sniffMonitorData(port, maxMs, isAlive = () => true) {
   const reader = port.readable.getReader()
   const dec = new TextDecoder()
   try {
     const deadline = Date.now() + maxMs
     while (Date.now() < deadline) {
+      if (!isAlive()) return null
       let tick
       const result = await Promise.race([
         reader.read(),
@@ -404,19 +406,34 @@ async function sniffMonitorData(port, maxMs) {
   }
 }
 
-/** Open CDC monitor port; returns only after first serial bytes (avoids dead opens). */
-export async function openMonitorPort({ timeoutMs = 2500, dataWaitMs = 8000, preferred = null } = {}) {
-  for (const port of await orderedPorts(preferred)) {
-    try {
-      await openPortFresh(port, timeoutMs)
-      const initial = await sniffMonitorData(port, dataWaitMs)
-      if (initial !== null) return { port, initial }
-      try { await port.close() } catch (_) {}
-    } catch (_) {
-      try { await port.close() } catch (_) {}
+/** Open picked port only. Fresh: fast open. Reconnect: probe for bytes first. */
+export async function openMonitorPort({
+  preferred = null,
+  probe = false,
+  probeMs = 8000,
+  openTimeoutMs = 2500,
+  isAlive = () => true,
+} = {}) {
+  if (!preferred || !isAlive()) return null
+  try {
+    if (probe) {
+      await openPortFresh(preferred, openTimeoutMs, isAlive)
+      if (!isAlive()) {
+        try { await preferred.close() } catch (_) {}
+        return null
+      }
+      const initial = await sniffMonitorData(preferred, probeMs, isAlive)
+      if (initial !== null) return { port: preferred, initial }
+      try { await preferred.close() } catch (_) {}
+      return null
     }
+    await ensurePortOpen(preferred)
+    await preferred.setSignals?.({ dataTerminalReady: true, requestToSend: true }).catch(() => {})
+    return { port: preferred, initial: '' }
+  } catch (_) {
+    try { await preferred.close() } catch (_) {}
+    return null
   }
-  return null
 }
 
 export async function openAuthorizedPort() {
