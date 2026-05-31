@@ -15,14 +15,12 @@
           fontFamily: {
             sans: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
           },
-          keyframes: {
-            'cursor-blink': {
-              '0%, 49%': { opacity: '1' },
-              '50%, 100%': { opacity: '0' },
+          colors: {
+            ocean: {
+              500: '#38a8d4',
+              600: '#1d94c4',
+              700: '#1578a3',
             },
-          },
-          animation: {
-            'cursor-blink': 'cursor-blink 0.55s step-end infinite',
           },
         },
       },
@@ -55,7 +53,7 @@
       <div class="absolute bottom-8 left-3.5 top-7 w-px bg-neutral-200" aria-hidden="true"></div>
 
       <div class="relative flex gap-5 pb-12" id="step1">
-        <div id="badge1" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-red-500 bg-white text-[11px] font-bold text-red-500">1</div>
+        <div id="badge1" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-ocean-600 bg-white text-[11px] font-bold text-ocean-600">1</div>
         <div class="min-w-0 flex-1">
           <h2 class="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Choose firmware</h2>
           <div class="mb-4 inline-flex border border-neutral-300">
@@ -144,7 +142,7 @@
           </div>
           <div id="monitor-term" class="h-64 overflow-y-auto border border-neutral-200 bg-neutral-50 p-3 pt-12 font-mono text-xs leading-relaxed text-neutral-800">
             <div id="monitor-lines"></div>
-            <span id="monitor-cursor" class="hidden animate-cursor-blink text-neutral-300">▌</span>
+            <span id="monitor-cursor" class="hidden animate-pulse text-neutral-300">▌</span>
           </div>
           <button type="button" id="mon-scroll-end" class="absolute bottom-3 right-3 z-10 hidden inline-flex h-7 items-center gap-1 border border-neutral-300 bg-white px-3 text-[10px] font-bold uppercase leading-none tracking-wider text-neutral-700 shadow-sm transition hover:border-black hover:text-black" aria-label="Jump to latest log lines">Latest<svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3"/></svg></button>
         </div>
@@ -177,8 +175,8 @@
     </section>
   </main>
 
-  <footer class="mt-auto border-t border-neutral-200 bg-neutral-50 px-6 py-8">
-    <div class="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-6">
+  <footer class="mt-auto border-t border-neutral-200 bg-neutral-50 py-8">
+    <div class="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-6 px-6">
       <div>
         <p class="text-xs font-bold uppercase tracking-wider text-neutral-800">ESPD Kits</p>
         <p class="mt-1 text-xs text-neutral-500">Pure Data firmware for supported ESPD kits</p>

@@ -649,8 +649,8 @@ function stepState(n) {
 const TICK = '<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'
 const badgeBase = 'relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 bg-white text-[11px] font-bold'
 const badgeStates = {
-  active: 'border-red-500 text-red-500',
-  done: 'border-red-500 bg-red-500 text-white',
+  active: 'border-ocean-600 text-ocean-600',
+  done: 'border-ocean-600 bg-ocean-600 text-white',
   locked: 'border-neutral-300 text-neutral-300',
 }
 const stepBaseMid = 'relative flex gap-5 pb-12'
