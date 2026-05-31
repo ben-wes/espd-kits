@@ -3,6 +3,7 @@ import {
   collectSyncFiles,
   collectSyncMtimes,
   connectAndPrepare,
+  openAuthorizedPort,
   reconnectPrepared,
   requestSerialPort,
   sleep,
@@ -40,6 +41,13 @@ let syncPollTimer = null
 let syncMtimes = new Map()
 let syncWatchPaused = false
 let syncReconnecting = false
+let syncWanted = false
+let syncMaintainerGen = 0
+let monWanted = false
+let monMaintainerGen = 0
+let pdMsgHistory = []
+let pdHistoryIdx = 0
+let pdHistoryDraft = ''
 
 function syncLog(msg) {
   appendLine(msg, 'sync')
@@ -58,15 +66,84 @@ function syncCallbacks() {
 }
 
 function onSyncDisconnect() {
-  if (syncReconnecting || syncBusy) return
-  syncLog('device disconnected')
+  if (syncReconnecting || syncBusy || !syncWanted) return
+  syncLog('device disconnected — waiting for port…')
+  $('sync-status').textContent = 'Waiting for device…'
   if (syncClient) {
     syncClient.close().catch(() => {})
     syncClient = null
   }
   stopSyncWatch()
-  setSyncUi(false)
-  $('sync-status').textContent = 'Disconnected — Connect & sync again'
+  setSyncUi(true)
+  updateMonitorToolbar()
+  kickSyncMaintainer()
+}
+
+function kickSyncMaintainer() {
+  if (!syncWanted) return
+  const gen = ++syncMaintainerGen
+  ;(async () => {
+    while (syncWanted && gen === syncMaintainerGen) {
+      if (syncClient) {
+        await sleep(400)
+        continue
+      }
+      if (syncBusy) {
+        await sleep(200)
+        continue
+      }
+      $('sync-status').textContent = 'Waiting for device…'
+      syncReconnecting = true
+      const cb = syncCallbacks()
+      try {
+        let client = await waitForAuthorizedPort(120000, cb)
+        client = await reconnectPrepared(client, cb)
+        if (!syncWanted || gen !== syncMaintainerGen) {
+          await client.close().catch(() => {})
+          return
+        }
+        syncClient = client
+        const info = await client.status()
+        $('sync-status').textContent = `Connected · target ${syncStorePath(info)}`
+        syncLog('reconnected')
+        await refreshSyncMtimes()
+        await resumeSyncWatch()
+        setSyncUi(true)
+        updateMonitorToolbar()
+      } catch (_) {
+        await sleep(800)
+      } finally {
+        syncReconnecting = false
+      }
+    }
+  })()
+}
+
+function kickMonitorMaintainer() {
+  if (!monWanted || syncClient) return
+  const gen = ++monMaintainerGen
+  ;(async () => {
+    while (monWanted && !syncClient && gen === monMaintainerGen) {
+      if (monPort) {
+        await sleep(400)
+        continue
+      }
+      updateMonitorToolbar()
+      const port = await openAuthorizedPort()
+      if (port && monWanted && !syncClient && gen === monMaintainerGen) {
+        try {
+          monPort = port
+          monBuf = ''
+          updateMonitorToolbar()
+          readMonitor(port)
+          return
+        } catch (_) {
+          try { await port.close() } catch (_) {}
+        }
+      }
+      await sleep(500)
+    }
+  })()
 }
 
 function stopSyncWatch() {
@@ -124,9 +201,10 @@ async function reconnectSync() {
 }
 
 function setSyncUi(connected) {
-  show($('sync-start-btn'), syncDirHandle && !connected)
-  show($('sync-now-btn'), connected)
-  show($('sync-stop-btn'), connected)
+  const active = connected || syncWanted
+  show($('sync-start-btn'), syncDirHandle && !active)
+  show($('sync-now-btn'), active)
+  show($('sync-stop-btn'), active)
   show($('sync-assets-row'), !!syncDirHandle)
   $('sync-start-btn').disabled = syncBusy
   $('sync-now-btn').disabled = syncBusy
@@ -134,6 +212,8 @@ function setSyncUi(connected) {
 }
 
 async function stopSync() {
+  syncWanted = false
+  syncMaintainerGen++
   stopSyncWatch()
   if (syncClient) {
     await syncClient.close().catch(() => {})
@@ -176,7 +256,12 @@ async function runSync(label, onlyRels = null) {
     setWatchingStatus()
   } catch (e) {
     syncLog(`error: ${e.message || e}`)
-    if (!syncClient) $('sync-status').textContent = 'Disconnected — Connect & sync again'
+    if (!syncClient && syncWanted) {
+      $('sync-status').textContent = 'Waiting for device…'
+      kickSyncMaintainer()
+    } else if (!syncClient) {
+      $('sync-status').textContent = 'Disconnected — Connect & sync again'
+    }
   } finally {
     syncBusy = false
     syncWatchPaused = false
@@ -236,6 +321,7 @@ async function startSyncWatch() {
 async function startPatchSync() {
   if (!syncDirHandle || syncBusy) return
   await stopSync()
+  syncWanted = true
   if (monPort) await closeMonitor()
   syncBusy = true
   setSyncUi(true)
@@ -659,17 +745,25 @@ $('flash-btn').addEventListener('click', async () => {
 })
 
 function updateMonitorToolbar() {
-  const syncing = !!syncClient
-  const monitoring = !!monPort && !syncing
-  const logOpen = syncing || monitoring || monLogOpen
-  const canSendPd = syncing || monitoring
+  const syncing = !!syncClient || syncWanted
+  const monitoring = !!monPort && !syncClient && !syncWanted
+  const logOpen = syncing || monitoring || monLogOpen || monWanted
+  const canSendPd = !!syncClient || !!monPort
 
-  show($('mon-connect-btn'), !syncing && !monitoring)
-  show($('mon-disc-btn'), monitoring)
+  show($('mon-connect-btn'), !syncing && !monitoring && !monWanted)
+  show($('mon-disc-btn'), monWanted && !syncClient)
   show($('mon-status'), monitoring)
+  if (monWanted && !monPort && !syncClient) {
+    show($('mon-status'), true)
+    $('mon-status').innerHTML =
+      '<span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span> waiting for port'
+  } else if (monitoring) {
+    $('mon-status').innerHTML =
+      '<span class="h-1.5 w-1.5 rounded-full bg-green-600"></span> 115200 baud'
+  }
   show($('mon-log-actions'), logOpen)
   show($('monitor-wrap'), logOpen)
-  show($('monitor-cursor'), logOpen)
+  show($('monitor-cursor'), logOpen && (monitoring || !!syncClient))
   show($('mon-pd-send'), logOpen && canSendPd)
   $('mon-pd-btn').disabled = syncBusy
   $('mon-pd-input').disabled = syncBusy
@@ -718,6 +812,8 @@ function updateMonitorFollowFromScroll() {
 }
 
 async function closeMonitor() {
+  monWanted = false
+  monMaintainerGen++
   if (syncClient) {
     await stopSync()
     return
@@ -744,6 +840,7 @@ async function sendPdMessage(text) {
     syncLog('Pd message must be a single line')
     return
   }
+  pushPdHistory(msg)
   try {
     if (syncClient) {
       await syncClient.sendPd(msg)
@@ -758,6 +855,32 @@ async function sendPdMessage(text) {
     }
   } catch (e) {
     syncLog(`Pd send failed: ${e.message || e}`)
+  }
+}
+
+function pushPdHistory(msg) {
+  if (pdMsgHistory[pdMsgHistory.length - 1] !== msg) pdMsgHistory.push(msg)
+  if (pdMsgHistory.length > 100) pdMsgHistory.shift()
+  pdHistoryIdx = pdMsgHistory.length
+  pdHistoryDraft = ''
+}
+
+function navigatePdHistory(dir) {
+  const input = $('mon-pd-input')
+  if (!pdMsgHistory.length) return
+  if (dir < 0) {
+    if (pdHistoryIdx === pdMsgHistory.length) pdHistoryDraft = input.value
+    if (pdHistoryIdx <= 0) return
+    pdHistoryIdx--
+    input.value = pdMsgHistory[pdHistoryIdx]
+  } else {
+    if (pdHistoryIdx >= pdMsgHistory.length - 1) {
+      pdHistoryIdx = pdMsgHistory.length
+      input.value = pdHistoryDraft
+      return
+    }
+    pdHistoryIdx++
+    input.value = pdMsgHistory[pdHistoryIdx]
   }
 }
 
@@ -815,6 +938,7 @@ function appendLine(text, source) {
 
 $('mon-connect-btn').addEventListener('click', async () => {
   if (monPort || syncClient) return
+  monWanted = true
   try {
     const port = await navigator.serial.requestPort()
     await port.open({ baudRate: 115200 })
@@ -850,6 +974,12 @@ async function readMonitor(port) {
     if (monReader === reader) monReader = null
     if (monPort === port) {
       monPort = null
+      try { await port.close() } catch (_) {}
+    }
+    if (monWanted && !syncClient) {
+      syncLog('port closed — waiting to reconnect…')
+      kickMonitorMaintainer()
+    } else if (!monWanted) {
       showMonitorDisconnected()
     }
   }
@@ -874,6 +1004,15 @@ $('mon-pd-send').addEventListener('submit', e => {
   const text = input.value
   input.value = ''
   sendPdMessage(text)
+})
+$('mon-pd-input').addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    navigatePdHistory(-1)
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    navigatePdHistory(1)
+  }
 })
 $('mon-expand-btn').addEventListener('click', toggleMonitorExpanded)
 document.addEventListener('keydown', e => {
