@@ -856,9 +856,13 @@ function updateMonitorToolbar() {
   const canSendPd = !!syncClient || !!monPort
 
   show($('mon-connect-btn'), !syncing && !monitoring && !monWanted && !monConnecting)
-  show($('mon-disc-btn'), monWanted && !syncClient)
+  show($('mon-disc-btn'), monWanted || !!syncClient || syncWanted)
   show($('mon-status'), monitoring)
-  if (monWanted && !monPort && !syncClient) {
+  if (syncClient) {
+    show($('mon-status'), true)
+    $('mon-status').innerHTML =
+      '<span class="h-1.5 w-1.5 rounded-full bg-green-600"></span> patch sync'
+  } else if (monWanted && !monPort && !syncClient) {
     show($('mon-status'), true)
     $('mon-status').innerHTML =
       '<span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span> waiting for port'
