@@ -522,6 +522,7 @@ export async function prepareForSync(client, callbacks, { reconnecting = false }
       onLog('SD card available -- using /sdcard')
       return client
     }
+    if (info.internal === 'yes') return client
     return ensureStorageForWrite(client, callbacks)
   } finally {
     if (callbacks?.setReconnecting) callbacks.setReconnecting(false)
