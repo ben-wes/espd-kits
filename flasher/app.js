@@ -1126,14 +1126,20 @@ $('mon-reset-btn').addEventListener('click', async () => {
       syncLog(`Reset failed: ${e.message || e}`)
     }
   } else if (monPort) {
-    appendLine('Resetting board...', 'sync')
     try {
-      await monPort.setSignals({ requestToSend: true })
+      if (monPort.writable) {
+        const writer = monPort.writable.getWriter()
+        try {
+          await writer.write(new TextEncoder().encode("RESET\n"))
+        } catch (_) {}
+        finally {
+          writer.releaseLock()
+        }
+      }
+      await monPort.setSignals({ dataTerminalReady: false, requestToSend: true })
       await sleep(100)
-      await monPort.setSignals({ requestToSend: false })
-    } catch (e) {
-      appendLine(`[Error] Reset failed: ${e.message || e}`, 'sync')
-    }
+      await monPort.setSignals({ dataTerminalReady: true, requestToSend: false })
+    } catch (_) {}
   }
 })
 $('mon-clear-btn').addEventListener('click', () => {
