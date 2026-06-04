@@ -880,6 +880,7 @@ function updateMonitorToolbar() {
 
   show($('mon-connect-btn'), !syncActive && !monitorActive && !monConnecting)
   show($('mon-disc-btn'), logOpen && (syncActive || monitorActive))
+  show($('mon-reset-btn'), logOpen && (syncActive || monitorActive))
   show($('mon-status'), false)
   if (syncClient) {
     show($('mon-status'), true)
@@ -1116,6 +1117,25 @@ async function readMonitorLoop(port) {
 }
 
 $('mon-disc-btn').addEventListener('click', async () => { await closeMonitor() })
+$('mon-reset-btn').addEventListener('click', async () => {
+  if (syncClient) {
+    syncLog('Resetting board...')
+    try {
+      await syncClient.resetDevice()
+    } catch (e) {
+      syncLog(`Reset failed: ${e.message || e}`)
+    }
+  } else if (monPort) {
+    appendLine('Resetting board...', 'sync')
+    try {
+      await monPort.setSignals({ requestToSend: true })
+      await sleep(100)
+      await monPort.setSignals({ requestToSend: false })
+    } catch (e) {
+      appendLine(`[Error] Reset failed: ${e.message || e}`, 'sync')
+    }
+  }
+})
 $('mon-clear-btn').addEventListener('click', () => {
   $('monitor-lines').innerHTML = ''
   clearMonitorCursor()
