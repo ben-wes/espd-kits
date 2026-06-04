@@ -143,12 +143,6 @@ function wakeMonitorMaintainer() {
 }
 
 function noteMonitorActivity() {
-  show($('monitor-cursor'), true)
-  if (monActivityTimer) clearTimeout(monActivityTimer)
-  monActivityTimer = setTimeout(() => {
-    monActivityTimer = null
-    show($('monitor-cursor'), false)
-  }, MON_CURSOR_IDLE_MS)
 }
 
 function clearMonitorCursor() {
@@ -156,7 +150,6 @@ function clearMonitorCursor() {
     clearTimeout(monActivityTimer)
     monActivityTimer = null
   }
-  show($('monitor-cursor'), false)
 }
 
 function flushMonBuf() {
