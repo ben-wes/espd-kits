@@ -13,7 +13,7 @@ jobs:
       matrix:
         board: [waveshare_s3]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -45,13 +45,12 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p "dist/${{ matrix.board }}"
-          cp espd/build/espd.bin \
-             espd/build/bootloader/bootloader.bin \
-             espd/build/partition_table/partition-table.bin \
-             espd/build/flash_args \
-             "dist/${{ matrix.board }}/"
+          cp espd/build/espd.bin "dist/${{ matrix.board }}/${{ matrix.board }}-espd.bin"
+          cp espd/build/bootloader/bootloader.bin "dist/${{ matrix.board }}/${{ matrix.board }}-bootloader.bin"
+          cp espd/build/partition_table/partition-table.bin "dist/${{ matrix.board }}/${{ matrix.board }}-partition-table.bin"
+          cp espd/build/flash_args "dist/${{ matrix.board }}/${{ matrix.board }}-flash_args"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: espd-kit-${{ matrix.board }}-${{ github.sha }}
           path: dist/${{ matrix.board }}/
@@ -64,31 +63,18 @@ jobs:
       contents: write
       actions: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
-          pattern: espd-kit-*-${{ github.sha }}
           path: dist
 
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          shopt -s nullglob
-          found=0
-          for artifact_dir in dist/espd-kit-*-*/; do
-            artifact=$(basename "${artifact_dir%/}")
-            board="${artifact#espd-kit-}"
-            board="${board%-${GITHUB_SHA}}"
-            cp "${artifact_dir}bootloader.bin" "release-assets/${board}-bootloader.bin"
-            cp "${artifact_dir}partition-table.bin" "release-assets/${board}-partition-table.bin"
-            cp "${artifact_dir}espd.bin" "release-assets/${board}-espd.bin"
-            cp "${artifact_dir}flash_args" "release-assets/${board}-flash_args"
-            found=$((found + 1))
-          done
-          if [ "$found" -eq 0 ]; then
-            echo "No build artifacts under dist/espd-kit-*-${GITHUB_SHA}/"
-            find dist -type f 2>/dev/null || ls -laR dist || true
+          find dist -type f -exec cp {} release-assets/ \;
+          if [ -z "$(ls -A release-assets)" ]; then
+            echo "No release assets found under dist/"
             exit 1
           fi
           ls -la release-assets
@@ -105,14 +91,14 @@ jobs:
             --base-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
           python3 scripts/generate-manifest.py --catalog
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |
             release-assets/**/*
 
       - name: Redeploy flasher with new release assets
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.actions.createWorkflowDispatch({
