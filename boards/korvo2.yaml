@@ -7,18 +7,17 @@ target: esp32s3
 help: |
   Espressif ESP32-S3-Korvo-2 multimedia board (ES7210 mic array,
   ES8311 speaker, microSD, LCD, TCA9554 IO expander).
-  Uses esp_codec_dev with slow I2C (10kHz) for reliable codec init.
 
 bsp:
-  # Component name as used in CMake REQUIRES (managed_components dir uses __)
   component: esp32_s3_korvo_2
-  # Full namespace for idf_component.yml registry dependency key
-  registry_component: espressif/esp32_s3_korvo_2
-  version: "5.0.0"
-  # TCA9554 IO expander must be init'd before the codec or I2C will hang
-  io_expander_before_audio: true
-  # Korvo-2 uses led_indicator (not WS2812 strip); suppress conflicting bsp_led_set decl
+  git: https://github.com/ben-wes/esp-bsp.git
+  path: bsp/esp32_s3_korvo_2
+  version: espd-bsp
+  # Korvo-2's BSP provides its own bsp_led_set (led_indicator, incompatible
+  # signature); suppress espd's WS2812 bsp_led_* so they don't conflict.
   no_ws2812_leds: true
+
+flash: 16MB
 
 features:
   imply:
@@ -36,3 +35,8 @@ profile:
     BSP_I2C_NUM: 1
   display:
     BSP_CONFIG_NO_GRAPHIC_LIB: 1
+  storage:
+    # SD cards use 512-byte physical sectors; FATFS_SECTOR_4096 makes the mount
+    # fail silently. Board-local (Korvo-2 has no internal-flash MSC, so this does
+    # not affect boards that do, e.g. waveshare_s3).
+    FATFS_SECTOR_512: y

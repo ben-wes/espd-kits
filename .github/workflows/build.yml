@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        board: [waveshare_s3]
+        board: [waveshare_s3, korvo2]
     steps:
       - uses: actions/checkout@v6
         with:

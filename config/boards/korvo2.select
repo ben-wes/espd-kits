@@ -1,0 +1,2 @@
+# Appended to espd/sdkconfig.defaults.local during kit CI/local build only.
+CONFIG_ESPD_BOARD_KORVO2=y
