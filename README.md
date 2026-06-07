@@ -27,6 +27,47 @@ cd espd-kits
 # artifacts in dist/waveshare_s3/
 ```
 
+## Custom config (menuconfig)
+
+`build-board.sh` builds with the kit's defaults and no prompts. To customize the
+config (sample rate, WiFi, dev sync, extra GPIO, …) run menuconfig in the `espd/`
+submodule, starting from the kit baseline:
+
+```bash
+. $HOME/.espressif/v6.0.1/esp-idf/export.sh
+export ESPD_BOARDS_DIR=$PWD/boards                       # kit boards discoverable
+cp config/boards/waveshare_s3.select espd/sdkconfig.defaults.local   # pre-select the board
+cd espd
+idf.py set-target esp32s3
+idf.py menuconfig                  # ESPD Configuration → … (board already selected)
+idf.py build flash monitor
+```
+
+`grep CONFIG_ESPD_BOARD_ espd/sdkconfig` should show your kit. Note: re-running
+`build-board.sh` overwrites `espd/sdkconfig.defaults.local` and re-runs
+`set-target`, resetting to kit defaults — so keep menuconfig tweaks tracked
+(a branch, or a committed `.select`/profile change).
+
+## Adding a custom board
+
+Firmware stays board-agnostic in `espd/`; a board is just two files here:
+
+1. **`boards/<id>.yaml`** — board definition: the esp-bsp package (`bsp:`), enabled
+   ESPD features (`features.imply`), flash size (`flash:`), IDF tuning (`profile:`),
+   and button map (`io:`). Full schema:
+   [espd/docs/ADDING_A_BOARD.md](espd/docs/ADDING_A_BOARD.md).
+2. **`config/boards/<id>.select`** — one line, `CONFIG_ESPD_BOARD_<ID>=y`, copied to
+   `espd/sdkconfig.defaults.local` at build time.
+
+Then `./scripts/build-board.sh <id>` (or the menuconfig flow above).
+
+**Custom components / BSP:** hardware drivers live in the **esp-bsp package** the
+YAML points at (`bsp.git` / `bsp.registry`), *not* in `espd`. Point `bsp:` at your
+fork or a registry component; extra Component Manager deps go in that package's
+`idf_component.yml`. For an in-tree BSP, use `bsp.path: local` and drop the
+component in `espd/local_components/` (see ADDING_A_BOARD.md). The generator emits
+`espd/components/espd_board_<id>/` (a thin plugin → your BSP) on every configure.
+
 ## Submodule policy
 
 - **Development:** `espd` tracks a branch (e.g. `bsp`) or commit on `main`.
