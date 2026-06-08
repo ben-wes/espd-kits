@@ -1,6 +1,3 @@
-# ESPD board definition — source of truth for components/espd_board_korvo2/
-# Regenerated on every CMake configure (scripts/gen_board_plugins.py).
-
 id: korvo2
 name: ESP32-S3-Korvo-2
 target: esp32s3
@@ -13,8 +10,6 @@ bsp:
   git: https://github.com/ben-wes/esp-bsp.git
   path: bsp/esp32_s3_korvo_2
   version: espd-bsp
-  # Korvo-2's BSP provides its own bsp_led_set (led_indicator, incompatible
-  # signature); suppress espd's WS2812 bsp_led_* so they don't conflict.
   no_ws2812_leds: true
 
 features:
@@ -28,13 +23,8 @@ io:
   buttons: [REC, MUTE, PLAY, SET, VOLDOWN, VOLUP]
 
 profile:
-  audio:
-    BSP_I2S_NUM: 1
-    BSP_I2C_NUM: 1
   display:
     BSP_CONFIG_NO_GRAPHIC_LIB: 1
   storage:
-    # SD cards use 512-byte physical sectors; FATFS_SECTOR_4096 makes the mount
-    # fail silently. Board-local (Korvo-2 has no internal-flash MSC, so this does
-    # not affect boards that do, e.g. waveshare_s3).
+    # SD cards use 512-byte sectors; chip-wide FATFS 4096 breaks SD mount.
     FATFS_SECTOR_512: y

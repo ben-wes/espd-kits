@@ -1,4 +1,7 @@
 dist/
+manifests/
+flasher/manifests/boards.json
+flasher/manifests/releases.json
 flasher/firmware/
 flasher/manifests/releases/
 .DS_Store

@@ -1,9 +1,14 @@
 # Board definitions
 
-YAML files here are the **source of truth** for kit builds. Builds set **`ESPD_BOARDS_DIR`** to this directory (the `espd` submodule is not modified).
+YAML files here are the **only** source of truth for kit boards — one file per board (`<id>.yaml`). CI and `generate-manifest.py` discover them automatically.
+
+Builds point **`ESPD_BOARDS_DIR`** at this directory (the `espd` submodule is not modified and board YAMLs are not copied into it).
 
 Schema and authoring guide: **[espd/docs/ADDING_A_BOARD.md](../espd/docs/ADDING_A_BOARD.md)** (in submodule).
 
-Each board needs **`config/boards/<id>.select`**, merged into **`espd/sdkconfig.defaults.local`** for builds.
+`build-board.sh` and CI write **`CONFIG_ESPD_BOARD_<ID>=y`** to **`espd/sdkconfig.defaults.local`** from the YAML `id`.
 
-An optional copy of a kit YAML may also exist under **`espd/boards/`** as a reference for firmware-only workflows.
+## Adding a board
+
+1. Add `boards/<id>.yaml`
+2. Tag a release — CI builds firmware and attaches `manifest.json`; Pages mirrors `flasher/manifests/releases/{tag}.json`

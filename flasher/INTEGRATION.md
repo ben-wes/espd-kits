@@ -11,20 +11,16 @@ Multi-board ready UI in `index.html` + `app.js`.
 | Firmware binaries | `{board_id}-bootloader.bin`, `{board_id}-espd.bin`, … per release |
 | Deploy | `.github/workflows/pages.yml` → GitHub Pages |
 
-## Manifest files
+## Release manifest
 
-**`manifests/boards.json`** — generated catalog from board YAML (used by CI/docs; the flasher does not load it).
-
-**`manifest.json`** (attached to each release tag — drives the UI):
-
-Board metadata in `manifest.json` is generated from `boards/<id>.yaml` (`help` → description). Optional board photo in YAML:
+**`manifest.json`** is attached to each GitHub Release tag and drives the UI. Generated from `boards/<id>.yaml` on tag (`help` → description). Optional board photo in YAML:
 
 ```yaml
 flasher:
   image: "assets/boards/waveshare_s3.jpg"
 ```
 
-Example release manifest:
+Example:
 
 ```json
 {
@@ -49,7 +45,6 @@ Example release manifest:
 Generate locally:
 
 ```bash
-python3 scripts/generate-manifest.py --catalog
 python3 scripts/generate-manifest.py --version v0.1.0 \
   --base-url "https://github.com/ben-wes/espd-kits/releases/download/v0.1.0" \
   -o /tmp/manifest.json
@@ -73,7 +68,6 @@ See [espd/docs/DEV_SYNC.md](../espd/docs/DEV_SYNC.md) for protocol and storage r
 
 ## Adding a board
 
-1. Add `boards/<id>.yaml` and `config/boards/<id>.select`
-2. List it in `boards/index.yaml`
-3. Add `<id>` to the CI matrix in `.github/workflows/build.yml`
-4. Regenerate `manifests/boards.json`
+1. Add `boards/<id>.yaml`
+
+CI, `build-board.sh`, and release manifests discover boards from that directory automatically.

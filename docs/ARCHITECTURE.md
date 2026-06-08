@@ -22,20 +22,18 @@
 
 | File | Owner | Purpose |
 |------|--------|---------|
-| `boards/<id>.yaml` | **espd-kits** | Product catalog, CI matrix (`boards/index.yaml`) |
-| `config/boards/<id>.select` | **espd-kits** | `CONFIG_ESPD_BOARD_*=y` for non-interactive builds |
-| `boards/<id>.yaml` (optional) | **espd** | Same schema as **reference** for firmware-only clones |
+| `boards/<id>.yaml` | **espd-kits** | Sole source of truth; CI and manifests scan this directory |
 | `components/espd_board_*` | **generated** | From YAML at CMake time; gitignored in espd |
 
-**CI / local build** (ephemeral files under `espd/`, not committed in the submodule):
+**CI / local build** (ephemeral under `espd/`, not committed in the submodule):
 
 ```bash
-cp boards/waveshare_s3.yaml espd/boards/
-cat config/boards/waveshare_s3.select > espd/sdkconfig.defaults.local
+export ESPD_BOARDS_DIR=$PWD/boards
+python3 scripts/generate-manifest.py --select waveshare_s3 > espd/sdkconfig.defaults.local
 cd espd && idf.py set-target esp32s3 build
 ```
 
-`build-board.sh` and `build.yml` do this automatically. Requires **espd** with `sdkconfig.defaults.local` in `CMakeLists.txt`.
+`build-board.sh` and `build.yml` set `ESPD_BOARDS_DIR` and write `sdkconfig.defaults.local` automatically.
 
 ## Build pipeline
 
@@ -43,36 +41,40 @@ cd espd && idf.py set-target esp32s3 build
 flowchart LR
   subgraph kits [espd-kits]
     BY[boards/*.yaml]
-    SEL[config/boards/*.select]
     LOC[sdkconfig.defaults.local]
   end
   subgraph espd [espd submodule]
     GEN[gen_board_plugins.py]
     IDF[idf.py build]
   end
-  BY --> espd
-  SEL --> LOC
+  subgraph release [tag release]
+    MAN[manifest.json]
+    SYNC[sync-flasher-releases.py]
+    PER[manifests/releases/TAG.json]
+  end
+  BY -->|ESPD_BOARDS_DIR| GEN
+  BY --> LOC
   LOC --> GEN
   GEN --> IDF
   IDF --> ART[dist/BOARD/]
-  ART --> REL[GitHub Release]
-  REL --> MAN[manifests/releases.json]
-  MAN --> WEB[flasher/ Pages]
+  ART --> MAN
+  MAN --> SYNC --> PER
+  PER --> WEB[flasher Pages]
 ```
 
 1. `prepare_espd.sh` — Pd patches only.
-2. `build-board.sh <id>` — writes `.local` + board YAML, `idf.py build` in `espd/`.
-3. Tag release → `generate-manifest.py` → GitHub assets + `releases.json`.
+2. `build-board.sh <id>` — `ESPD_BOARDS_DIR` + `.local`, `idf.py build` in `espd/`.
+3. Tag release → `manifest.json` on the release → Pages mirrors per-tag JSON for the flasher.
 
 ## Manifest (flasher)
 
-See `scripts/generate-manifest.py` and [flasher/INTEGRATION.md](../flasher/INTEGRATION.md).
+See `scripts/generate-manifest.py` and [flasher/INTEGRATION.md](../flasher/INTEGRATION.md). Only **per-release** manifests are used at runtime (`flasher/manifests/releases/{tag}.json`). Nothing under `manifests/` is tracked in git.
 
 ## GitHub Actions
 
 | Workflow | Trigger | Output |
 |----------|---------|--------|
-| `build.yml` | tags `v*`, manual | matrix from `boards/index.yaml`; release assets on tag |
+| `build.yml` | tags `v*`, manual | matrix from `boards/*.yaml`; `manifest.json` on release |
 | `pages.yml` | push to `main` | deploy `flasher/`; mirror release firmware via `sync-flasher-releases.py` |
 
 ## Follow-ups in `espd`
@@ -80,7 +82,7 @@ See `scripts/generate-manifest.py` and [flasher/INTEGRATION.md](../flasher/INTEG
 Done or tracked in upstream:
 
 - Board-neutral `sdkconfig.defaults.esp32s3`
-- `sdkconfig.defaults.local` (+ optional `ESPD_BOARDS_DIR` / `ESPD_SDKCONFIG_DEFAULTS` env)
+- `sdkconfig.defaults.local` + `ESPD_BOARDS_DIR`
 
 ## Release tagging
 

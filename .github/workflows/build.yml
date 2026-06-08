@@ -6,12 +6,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.boards.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - id: boards
+        run: |
+          pip install -q pyyaml
+          echo "matrix=$(python3 scripts/generate-manifest.py --matrix-json)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        board: [waveshare_s3, korvo2]
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -29,13 +41,14 @@ jobs:
 
       - name: Prepare sdkconfig.defaults.local
         run: |
-          cp "boards/${{ matrix.board }}.yaml" "espd/boards/${{ matrix.board }}.yaml"
-          cat "config/boards/${{ matrix.board }}.select" > "espd/sdkconfig.defaults.local"
+          python3 scripts/generate-manifest.py --select "${{ matrix.board }}" \
+            > espd/sdkconfig.defaults.local
           echo "sdkconfig.defaults.local:" && cat espd/sdkconfig.defaults.local
-          test -s espd/sdkconfig.defaults.local
 
       - name: Build firmware
         uses: espressif/esp-idf-ci-action@v1
+        env:
+          ESPD_BOARDS_DIR: ${{ github.workspace }}/boards
         with:
           esp_idf_version: v6.0.1
           target: ${{ steps.target.outputs.target }}
@@ -86,10 +99,6 @@ jobs:
             --version "${GITHUB_REF_NAME}" \
             --base-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}" \
             -o release-assets/manifest.json
-          python3 scripts/generate-manifest.py \
-            --version "${GITHUB_REF_NAME}" \
-            --base-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
-          python3 scripts/generate-manifest.py --catalog
 
       - uses: softprops/action-gh-release@v3
         with:

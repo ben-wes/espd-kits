@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build ESPD firmware for one kit board id (see boards/index.yaml).
+# Build ESPD firmware for one kit board id (see boards/*.yaml).
 set -euo pipefail
 
 BOARD_ID="${1:-}"
@@ -11,15 +11,10 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ESPD="${ROOT}/espd"
 YAML="${ROOT}/boards/${BOARD_ID}.yaml"
-SELECT="${ROOT}/config/boards/${BOARD_ID}.select"
 DIST="${ROOT}/dist/${BOARD_ID}"
 
 if [[ ! -f "${YAML}" ]]; then
   echo "missing ${YAML}" >&2
-  exit 1
-fi
-if [[ ! -f "${SELECT}" ]]; then
-  echo "missing ${SELECT} (Kconfig board choice)" >&2
   exit 1
 fi
 
@@ -40,8 +35,9 @@ fi
 
 "${ROOT}/scripts/prepare_espd.sh"
 
-cp "${YAML}" "${ESPD}/boards/${BOARD_ID}.yaml"
-cat "${SELECT}" > "${ESPD}/sdkconfig.defaults.local"
+export ESPD_BOARDS_DIR="${ROOT}/boards"
+python3 "${ROOT}/scripts/generate-manifest.py" --select "${BOARD_ID}" \
+  > "${ESPD}/sdkconfig.defaults.local"
 
 cd "${ESPD}"
 idf.py set-target "${TARGET}"

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import sys
@@ -12,6 +13,16 @@ from pathlib import Path
 
 REPO = "ben-wes/espd-kits"
 UA = "espd-kits-flasher-sync"
+
+
+def _manifest_helpers():
+    path = Path(__file__).resolve().parent / "generate-manifest.py"
+    spec = importlib.util.spec_from_file_location("generate_manifest", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def api_json(url: str, token: str | None = None) -> object:
@@ -62,7 +73,21 @@ def rewrite_manifest_urls(manifest: dict, tag: str, firmware_dir: Path, token: s
             spec["url"] = f"firmware/{tag}/{filename}"
 
 
+def fallback_board_entry(bid: str, tag: str, kit_boards: dict, manifest_mod) -> dict:
+    if bid in kit_boards:
+        entry = manifest_mod.release_board_entry(kit_boards[bid])
+    else:
+        entry = {"id": bid, "name": bid}
+    entry["files"] = manifest_mod.release_files(
+        f"https://github.com/{REPO}/releases/download/{tag}", bid
+    )
+    return entry
+
+
 def sync_flasher_releases(root: Path, token: str | None = None) -> int:
+    manifest_mod = _manifest_helpers()
+    kit_boards = manifest_mod.boards_by_id(root)
+
     flasher = root / "flasher"
     manifests_dir = flasher / "manifests" / "releases"
     firmware_dir = flasher / "firmware"
@@ -105,24 +130,7 @@ def sync_flasher_releases(root: Path, token: str | None = None) -> int:
             manifest = {
                 "version": tag,
                 "boards": [
-                    {
-                        "id": bid,
-                        "name": bid,
-                        "files": {
-                            "bootloader": {
-                                "url": f"https://github.com/{REPO}/releases/download/{tag}/{bid}-bootloader.bin",
-                                "offset": 0,
-                            },
-                            "partition_table": {
-                                "url": f"https://github.com/{REPO}/releases/download/{tag}/{bid}-partition-table.bin",
-                                "offset": 32768,
-                            },
-                            "app": {
-                                "url": f"https://github.com/{REPO}/releases/download/{tag}/{bid}-espd.bin",
-                                "offset": 65536,
-                            },
-                        },
-                    }
+                    fallback_board_entry(bid, tag, kit_boards, manifest_mod)
                     for bid in board_ids
                 ],
             }

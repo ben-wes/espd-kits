@@ -23,15 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Copy manifests for static site
-        run: |
-          pip install -q pyyaml
-          python3 scripts/generate-manifest.py --catalog
-          python3 scripts/generate-manifest.py --version dev
-          mkdir -p flasher/manifests
-          cp manifests/boards.json flasher/manifests/boards.json
-          cp manifests/releases.json flasher/manifests/releases.json
-
       - name: Mirror release firmware for flasher
         env:
           GITHUB_TOKEN: ${{ github.token }}

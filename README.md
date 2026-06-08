@@ -10,10 +10,8 @@ Upstream firmware and Pd core live in the **`espd/`** git submodule. This repo o
 |------|------|
 | [`espd/`](espd/) | ESPD firmware submodule (pinned per release tag on this repo) |
 | [`boards/`](boards/) | Board plugin YAMLs (source of truth; `ESPD_BOARDS_DIR` at build time) |
-| [`config/boards/`](config/boards/) | Per-board `.select` → copied to `espd/sdkconfig.defaults.local` at build time |
 | [`presets/`](presets/) | Example `config.txt` / patch bundles per use case (optional) |
 | [`flasher/`](flasher/) | Static Web Serial flasher (GitHub Pages) |
-| [`manifests/`](manifests/) | Generated `releases.json` for the flasher |
 | [`scripts/`](scripts/) | `prepare_espd.sh`, `build-board.sh`, `generate-manifest.py` |
 
 ## Quick start (local build)
@@ -36,7 +34,7 @@ submodule, starting from the kit baseline:
 ```bash
 . $HOME/.espressif/v6.0.1/esp-idf/export.sh
 export ESPD_BOARDS_DIR=$PWD/boards                       # kit boards discoverable
-cp config/boards/waveshare_s3.select espd/sdkconfig.defaults.local   # pre-select the board
+python3 scripts/generate-manifest.py --select waveshare_s3 > espd/sdkconfig.defaults.local
 cd espd
 idf.py set-target esp32s3
 idf.py menuconfig                  # ESPD Configuration → … (board already selected)
@@ -46,20 +44,18 @@ idf.py build flash monitor
 `grep CONFIG_ESPD_BOARD_ espd/sdkconfig` should show your kit. Note: re-running
 `build-board.sh` overwrites `espd/sdkconfig.defaults.local` and re-runs
 `set-target`, resetting to kit defaults — so keep menuconfig tweaks tracked
-(a branch, or a committed `.select`/profile change).
+(a branch, or a committed board YAML / profile change).
 
 ## Adding a custom board
 
-Firmware stays board-agnostic in `espd/`; a board is just two files here:
+Firmware stays board-agnostic in `espd/`; a kit board is one file:
 
-1. **`boards/<id>.yaml`** — board definition: the esp-bsp package (`bsp:`), enabled
-   ESPD features (`features.imply`), flash size (`flash:`), IDF tuning (`profile:`),
-   and button map (`io:`). Full schema:
-   [espd/docs/ADDING_A_BOARD.md](espd/docs/ADDING_A_BOARD.md).
-2. **`config/boards/<id>.select`** — one line, `CONFIG_ESPD_BOARD_<ID>=y`, copied to
-   `espd/sdkconfig.defaults.local` at build time.
+**`boards/<id>.yaml`** — board definition: the esp-bsp package (`bsp:`), enabled
+ESPD features (`features.imply`), optional IDF tuning (`profile:`), and button map
+(`io:`). Full schema: [espd/docs/ADDING_A_BOARD.md](espd/docs/ADDING_A_BOARD.md).
 
-Then `./scripts/build-board.sh <id>` (or the menuconfig flow above).
+Then `./scripts/build-board.sh <id>` (or the menuconfig flow above). CI and the
+build script derive `CONFIG_ESPD_BOARD_<ID>=y` from the YAML `id` automatically.
 
 **Custom components / BSP:** hardware drivers live in the **esp-bsp package** the
 YAML points at (`bsp.git` / `bsp.registry`), *not* in `espd`. Point `bsp:` at your
@@ -76,7 +72,7 @@ component in `espd/local_components/` (see ADDING_A_BOARD.md). The generator emi
 
 ## Web flasher
 
-GitHub Pages serves [`flasher/`](flasher/) — a Web Serial UI for the **Waveshare ESP32-S3-AUDIO** kit. Firmware binaries come from this repo’s **GitHub Releases** (built by CI on tags). Board metadata: [`manifests/releases.json`](manifests/releases.json).
+GitHub Pages serves [`flasher/`](flasher/) — a Web Serial UI for kit boards. Firmware binaries come from this repo’s **GitHub Releases** (built by CI on tags). Board metadata is in per-release `manifest.json` (mirrored to `flasher/manifests/releases/{tag}.json` on deploy).
 
 ## Docs
 

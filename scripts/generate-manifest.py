@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate flasher manifests from boards/index.yaml and boards/*.yaml."""
+"""Kit helpers: board discovery, CI matrix, release manifest.json for the flasher."""
 
 from __future__ import annotations
 
@@ -13,18 +13,43 @@ except ImportError:
     yaml = None  # type: ignore
 
 
-def load_board_index(index_path: Path) -> list[dict]:
+def board_kconfig_choice(board_id: str) -> str:
+    """menuconfig board choice line for sdkconfig.defaults.local."""
+    return f"CONFIG_ESPD_BOARD_{board_id.upper()}=y"
+
+
+def board_select_for_path(yaml_path: Path) -> str:
     if yaml is None:
         raise SystemExit("PyYAML required: pip install pyyaml")
-    data = yaml.safe_load(index_path.read_text(encoding="utf-8"))
-    return list(data.get("boards") or [])
+    data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):
+        raise SystemExit(f"{yaml_path}: expected mapping at top level")
+    board_id = data.get("id") or yaml_path.stem
+    return board_kconfig_choice(board_id)
 
 
-def load_board_yaml(root: Path, board_id: str) -> dict:
-    path = root / "boards" / f"{board_id}.yaml"
-    if not path.exists() or yaml is None:
-        return {}
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+def discover_boards(root: Path) -> list[dict]:
+    """All kit boards: one entry per boards/<id>.yaml."""
+    if yaml is None:
+        raise SystemExit("PyYAML required: pip install pyyaml")
+    boards_dir = root / "boards"
+    entries: list[dict] = []
+    for path in sorted(boards_dir.glob("*.yaml")):
+        if path.name == "index.yaml":
+            continue
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            raise SystemExit(f"{path}: expected mapping at top level")
+        board_id = data.get("id") or path.stem
+        entries.append(
+            {
+                "id": board_id,
+                "name": data.get("name") or board_id,
+                "target": data.get("target") or "",
+                "data": data,
+            }
+        )
+    return entries
 
 
 def chip_label(target: str) -> str:
@@ -41,8 +66,7 @@ def chip_label(target: str) -> str:
     return target.upper()
 
 
-def board_description(root: Path, board_id: str) -> str:
-    data = load_board_yaml(root, board_id)
+def board_description(data: dict) -> str:
     help_text = data.get("help") or ""
     if isinstance(help_text, str):
         line = help_text.strip().split("\n")[0].strip()
@@ -52,22 +76,23 @@ def board_description(root: Path, board_id: str) -> str:
     return ""
 
 
-def catalog_entry(root: Path, index_row: dict) -> dict:
-    bid = index_row["id"]
-    yaml_data = load_board_yaml(root, bid)
-    name = index_row.get("name") or yaml_data.get("name") or bid
-    target = index_row.get("target") or yaml_data.get("target") or ""
+def release_board_entry(board: dict) -> dict:
+    data = board["data"]
     entry = {
-        "id": bid,
-        "name": name,
-        "target": target,
-        "chip": chip_label(target),
-        "description": board_description(root, bid),
+        "id": board["id"],
+        "name": board["name"],
+        "target": board["target"],
+        "chip": chip_label(board["target"]),
+        "description": board_description(data),
     }
-    flasher = yaml_data.get("flasher") or {}
+    flasher = data.get("flasher") or {}
     if isinstance(flasher, dict) and flasher.get("image"):
         entry["image"] = flasher["image"]
     return entry
+
+
+def boards_by_id(root: Path) -> dict[str, dict]:
+    return {b["id"]: b for b in discover_boards(root)}
 
 
 def release_files(base: str, board_id: str) -> dict:
@@ -82,25 +107,15 @@ def release_files(base: str, board_id: str) -> dict:
     }
 
 
-def write_catalog(root: Path, out_path: Path) -> None:
-    boards = load_board_index(root / "boards" / "index.yaml")
-    payload = {"boards": [catalog_entry(root, b) for b in boards]}
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {out_path}")
-
-
 def write_release_manifest(
     root: Path, out_path: Path, version: str, base_url: str
 ) -> None:
-    boards = load_board_index(root / "boards" / "index.yaml")
     base = base_url.rstrip("/")
     out_boards = []
-    for b in boards:
-        bid = b["id"]
-        entry = catalog_entry(root, b)
+    for board in discover_boards(root):
+        entry = release_board_entry(board)
         if base:
-            entry["files"] = release_files(base, bid)
+            entry["files"] = release_files(base, board["id"])
         out_boards.append(entry)
     manifest = {"version": version, "boards": out_boards}
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -108,9 +123,23 @@ def write_release_manifest(
     print(f"wrote {out_path}")
 
 
+def board_matrix_json(root: Path) -> str:
+    boards = discover_boards(root)
+    return json.dumps({"board": [b["id"] for b in boards]})
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--catalog", action="store_true", help="write boards catalog only")
+    ap.add_argument(
+        "--matrix-json",
+        action="store_true",
+        help="print GitHub Actions matrix JSON for board ids",
+    )
+    ap.add_argument(
+        "--select",
+        metavar="BOARD",
+        help="print CONFIG_ESPD_BOARD_*=y for boards/BOARD.yaml",
+    )
     ap.add_argument("--version", default="dev", help="release tag, e.g. v0.1.0")
     ap.add_argument(
         "--base-url",
@@ -122,12 +151,19 @@ def main() -> int:
     args = ap.parse_args()
 
     root = args.root
-    if args.catalog:
-        out_path = args.output or (root / "manifests" / "boards.json")
-        write_catalog(root, out_path)
+    if args.select:
+        yaml_path = root / "boards" / f"{args.select}.yaml"
+        if not yaml_path.is_file():
+            raise SystemExit(f"missing {yaml_path}")
+        print(board_select_for_path(yaml_path))
+        return 0
+    if args.matrix_json:
+        print(board_matrix_json(root))
         return 0
 
-    out_path = args.output or (root / "manifests" / "releases.json")
+    if not args.base_url:
+        raise SystemExit("--base-url is required for release manifest generation")
+    out_path = args.output or (root / "manifest.json")
     write_release_manifest(root, out_path, args.version, args.base_url)
     return 0
 
