@@ -536,8 +536,20 @@ export async function waitForStorageReady(client, onLog, maxSec = 45) {
 export async function ensureStorageForWrite(client, callbacks) {
   const onLog = callbacks?.onLog || (() => { })
 
-  /* Device is in drive mode (internal flash owned by host).
-   * RESET reboots into Pd mode where /storage is APP-mounted. */
+  /* Device is in drive mode (internal flash owned by the host). Ask it to leave
+   * drive mode IN PLACE (MSC_SYNC) — it hands /storage back to the app without a
+   * reboot, so the CDC link stays up and we just poll STATUS until it's ready.
+   * Far faster and more reliable than RESET + reconnect. */
+  onLog('internal storage in drive mode -- requesting handoff (MSC_SYNC)')
+  try {
+    await client.command('MSC_SYNC', 3000)
+    const info = await waitForStorageReady(client, onLog)
+    if (info.internal === 'yes') return client
+  } catch (e) {
+    onLog(`MSC_SYNC failed (${e.message || e}); falling back to reset`)
+  }
+
+  /* Fallback for older firmware without MSC_SYNC: reboot into Pd mode. */
   onLog('internal storage not available -- resetting device')
   await client.resetDevice()
   await client.close()
