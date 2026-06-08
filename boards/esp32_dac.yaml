@@ -1,0 +1,16 @@
+id: esp32_dac
+name: ESP32 Internal DAC
+target: esp32
+generic: true
+help: |
+  Classic ESP32 built-in DAC (GPIO25/26) for dac~ output. No external codec;
+  adc~ capture is not available on this backend.
+
+features:
+  imply:
+    - ESPD_USE_WIFI
+    - ESPD_ENABLE_LEGACY_WIFI_TRANSPORT
+
+profile:
+  Audio:
+    ESPD_AUDIO_BACKEND_DAC: y
