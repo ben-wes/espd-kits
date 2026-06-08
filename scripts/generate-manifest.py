@@ -95,10 +95,27 @@ def boards_by_id(root: Path) -> dict[str, dict]:
     return {b["id"]: b for b in discover_boards(root)}
 
 
-def release_files(base: str, board_id: str) -> dict:
+def bootloader_offset(target: str) -> int:
+    """Flash offset of the bootloader, which is target-dependent.
+
+    Classic ESP32 and S2 reserve 0x0..0x1000 (and place the bootloader at
+    0x1000); P4 uses 0x2000; newer chips (S3, C2/C3/C6, H2) start at 0x0.
+    Flashing at the wrong offset bricks the boot — esp32_dac (esp32) needs 0x1000.
+    """
+    if target in ("esp32", "esp32s2"):
+        return 0x1000
+    if target == "esp32p4":
+        return 0x2000
+    return 0
+
+
+def release_files(base: str, board_id: str, target: str) -> dict:
     prefix = base.rstrip("/")
     return {
-        "bootloader": {"url": f"{prefix}/{board_id}-bootloader.bin", "offset": 0},
+        "bootloader": {
+            "url": f"{prefix}/{board_id}-bootloader.bin",
+            "offset": bootloader_offset(target),
+        },
         "partition_table": {
             "url": f"{prefix}/{board_id}-partition-table.bin",
             "offset": 32768,
@@ -115,7 +132,7 @@ def write_release_manifest(
     for board in discover_boards(root):
         entry = release_board_entry(board)
         if base:
-            entry["files"] = release_files(base, board["id"])
+            entry["files"] = release_files(base, board["id"], board["target"])
         out_boards.append(entry)
     manifest = {"version": version, "boards": out_boards}
     out_path.parent.mkdir(parents=True, exist_ok=True)
