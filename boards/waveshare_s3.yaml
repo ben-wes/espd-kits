@@ -23,10 +23,6 @@ features:
     - ESPD_USE_WIFI
     - ESPD_USE_USB_OTG
 
-# 16 MB hardware flash → espd generates the partition table (factory fixed,
-# storage = remainder) and sets ESPTOOLPY_FLASHSIZE.
-flash: 16MB
-
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
 

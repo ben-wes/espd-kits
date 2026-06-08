@@ -17,8 +17,6 @@ bsp:
   # signature); suppress espd's WS2812 bsp_led_* so they don't conflict.
   no_ws2812_leds: true
 
-flash: 16MB
-
 features:
   imply:
     - ESPD_USE_ADC
