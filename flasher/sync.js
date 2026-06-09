@@ -435,7 +435,11 @@ export async function waitForAuthorizedPort(timeoutMs = 60000, callbacks = {}) {
         const client = new EspdSyncClient(port, callbacks)
         try {
           await client.open()
-          for (let i = 0; i < 25; i++) {
+          // Only a few STATUS tries per open: after a RESET the device
+          // re-enumerates and this open may have landed on stale/dead CDC
+          // streams. Bail quickly so the outer loop re-opens FRESH streams (via
+          // openPortFresh) rather than burning ~35s retrying on dead ones.
+          for (let i = 0; i < 4; i++) {
             if (!isAlive()) {
               await client.close()
               throw new Error('aborted')

@@ -116,7 +116,9 @@ function kickSyncMaintainer() {
           return
         }
         syncClient = client
-        const info = await client.status()
+        // waitForAuthorizedPort already did a STATUS; reuse the cached result
+        // instead of a second round-trip.
+        const info = await client.deviceStatus()
         $('sync-status').textContent = `Connected · target ${syncStorePath(info)}`
         syncLog('reconnected')
         openSyncLog()
@@ -431,7 +433,10 @@ function openSyncLog() {
 async function startPatchSync() {
   if (!syncDirHandle || syncBusy) return
   syncLogOpen = true
-  if (monPort) {
+  // A live (or mid-connecting) monitor means the port is already authorized;
+  // remember that so we reconnect to it instead of popping a port picker.
+  const fromMonitor = monWanted || !!monPort
+  if (fromMonitor) {
     await releaseMonitorPort()
   }
   await stopSync(false, true)
@@ -442,9 +447,19 @@ async function startPatchSync() {
   monFollowLog = true
   $('sync-status').textContent = 'Connecting…'
   try {
-    syncClient = await connectAndPrepare(openAuthorizedPort, syncCallbacks(syncMaintainerGen)).catch(() => null)
-    if (!syncClient) {
-      syncClient = await connectAndPrepare(requestSerialPort, syncCallbacks(syncMaintainerGen))
+    const cb = syncCallbacks(syncMaintainerGen)
+    if (fromMonitor) {
+      // requestPort() can't run here — the awaits above consumed the click's
+      // user gesture. The monitor already authorized the port, so reconnect to
+      // it directly (waitForAuthorizedPort retries STATUS while the device is
+      // still settling after the monitor closed it).
+      syncClient = await waitForAuthorizedPort(20000, cb)
+      syncClient = await prepareForSync(syncClient, cb)
+    } else {
+      syncClient = await connectAndPrepare(openAuthorizedPort, cb).catch(() => null)
+      if (!syncClient) {
+        syncClient = await connectAndPrepare(requestSerialPort, cb)
+      }
     }
     const info = await syncClient.status()
     $('sync-status').textContent = `Connected · target ${syncStorePath(info)}`
