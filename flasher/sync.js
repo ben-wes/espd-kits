@@ -456,6 +456,16 @@ export async function waitForAuthorizedPort(timeoutMs = 60000, callbacks = {}) {
           if (e.message === 'aborted') throw e
         }
         await client.close()
+        // This port opened but never answered STATUS -> it's a dead/stale grant
+        // left over from an earlier USB re-enumeration. Chrome keeps every such
+        // grant per-origin, so over time getPorts() accumulates many corpses and
+        // openAuthorizedPort can commit to one (opens fine, no bytes ever flow:
+        // no bangs, no STATUS reply). Forget it so the list converges on the one
+        // live port. Guard on >1 so a healthy sole port is never stranded.
+        if ((await navigator.serial.getPorts()).length > 1) {
+          onLog('dropping stale serial port')
+          try { await port.forget?.() } catch (_) { }
+        }
       }
       await Promise.race([
         sleep(200),

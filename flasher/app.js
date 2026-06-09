@@ -11,7 +11,7 @@ import {
   syncFileList,
   syncStorePath,
   waitForAuthorizedPort,
-} from './sync.js'
+} from './sync.js?v=__BUILD__'
 
 const REPO = 'ben-wes/espd-kits'
 
