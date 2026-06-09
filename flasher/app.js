@@ -903,6 +903,7 @@ function updateMonitorToolbar() {
 
   $('mon-connect-btn').textContent = connected ? 'Disconnect' : (monConnecting ? 'Connecting...' : 'Connect')
   $('mon-connect-btn').disabled = monConnecting
+  $('mon-reload-btn').disabled = !connected
   $('mon-reset-btn').disabled = !connected
 
   show($('mon-status'), false)
@@ -1158,6 +1159,33 @@ async function readMonitorLoop(port) {
     if (stale) { try { await port.forget?.() } catch (_) {} }
   }
 }
+
+$('mon-reload-btn').addEventListener('click', async () => {
+  if (syncClient) {
+    syncLog('Reloading main.pd…')
+    try {
+      await syncClient.reload()
+      syncLog('RELOAD sent')
+    } catch (e) {
+      syncLog(`Reload failed: ${e.message || e}`)
+    }
+  } else if (monPort) {
+    try {
+      if (monPort.writable) {
+        appendLine('→ RELOAD', 'sync')
+        const writer = monPort.writable.getWriter()
+        try {
+          await writer.write(new TextEncoder().encode('RELOAD\n'))
+        } catch (_) {}
+        finally {
+          writer.releaseLock()
+        }
+      }
+    } catch (e) {
+      syncLog(`Reload failed: ${e.message || e}`)
+    }
+  }
+})
 
 $('mon-reset-btn').addEventListener('click', async () => {
   if (syncClient) {

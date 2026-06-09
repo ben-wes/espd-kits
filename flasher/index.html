@@ -123,10 +123,11 @@
 
     <section class="mt-16 border-t border-neutral-200 pt-8">
       <h3 class="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-neutral-400">Serial monitor</h3>
-      <p class="mb-5 text-sm text-neutral-500">Optional — after flashing, open the port again to read the boot log. Send Pd messages in the field below when connected. Use the board’s RESET button to reboot.</p>
+      <p class="mb-5 text-sm text-neutral-500">Optional — after flashing, open the port again to read the boot log. Send Pd messages in the field below when connected. Use <strong>Reload</strong> to reopen <code class="text-neutral-600">main.pd</code> from storage, or <strong>Reset</strong> to reboot the board.</p>
       <div id="monitor-wrap" class="relative">
         <div id="mon-toolbar" class="mb-3 flex flex-wrap items-center gap-3">
           <button type="button" class="sec-btn inline-flex h-10 items-center justify-center gap-2 border border-neutral-300 px-4 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black disabled:opacity-40 disabled:cursor-not-allowed" id="mon-connect-btn">Connect</button>
+          <button type="button" class="sec-btn inline-flex h-10 items-center justify-center gap-2 border border-neutral-300 px-4 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black disabled:opacity-40 disabled:cursor-not-allowed" id="mon-reload-btn" disabled>Reload</button>
           <button type="button" class="sec-btn inline-flex h-10 items-center justify-center gap-2 border border-neutral-300 px-4 text-xs font-bold uppercase tracking-wider text-neutral-700 transition hover:border-black hover:text-black disabled:opacity-40 disabled:cursor-not-allowed" id="mon-reset-btn" disabled>Reset</button>
           <span id="mon-status" class="hidden flex items-center gap-1.5 text-xs text-neutral-400">
             <span class="h-1.5 w-1.5 rounded-full bg-green-600"></span>
