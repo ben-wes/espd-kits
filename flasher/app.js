@@ -145,11 +145,13 @@ function wakeMonitorMaintainer() {
 
 function flushMonBuf() {
   if (monBuf.length > 65536) monBuf = monBuf.slice(-32768)
+  const batch = []
   let idx
   while ((idx = monBuf.indexOf('\n')) !== -1) {
-    appendLine(monBuf.slice(0, idx).replace(/\r$/, ''))
+    batch.push(monBuf.slice(0, idx).replace(/\r$/, ''))
     monBuf = monBuf.slice(idx + 1)
   }
+  if (batch.length) appendMonitorLines(batch)
 }
 
 function stopMonitorPipe() {
@@ -903,8 +905,12 @@ function updateMonitorToolbar() {
 
   $('mon-connect-btn').textContent = connected ? 'Disconnect' : (monConnecting ? 'Connecting...' : 'Connect')
   $('mon-connect-btn').disabled = monConnecting
-  $('mon-reload-btn').disabled = !connected
-  $('mon-reset-btn').disabled = !connected
+
+  const deviceDisabled = !canSendPd || syncBusy
+  $('mon-pd-btn').disabled = deviceDisabled
+  $('mon-pd-input').disabled = deviceDisabled
+  $('mon-reload-btn').disabled = deviceDisabled
+  $('mon-reset-btn').disabled = deviceDisabled
 
   show($('mon-status'), false)
   if (syncClient) {
@@ -925,9 +931,7 @@ function updateMonitorToolbar() {
       '<span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span> waiting for port'
   }
   show($('mon-toolbar'), !monExpanded)
-  const pdDisabled = !canSendPd || syncBusy
-  $('mon-pd-btn').disabled = pdDisabled
-  $('mon-pd-input').disabled = pdDisabled
+  show($('mon-pd-wrap'), true)
 }
 
 function showMonitorDisconnected() {
@@ -939,26 +943,47 @@ function showMonitorDisconnected() {
   updateMonitorToolbar()
 }
 
+const MONITOR_MAX_LINES = 10000
+const MONITOR_AT_BOTTOM_PX = 4
+
 function isMonitorAtBottom() {
   const el = $('monitor-term')
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 24
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= MONITOR_AT_BOTTOM_PX
 }
 
 function scrollMonitorToEnd() {
-  const el = $('monitor-term')
-  el.scrollTop = el.scrollHeight
+  const term = $('monitor-term')
+  term.scrollTop = term.scrollHeight - term.clientHeight
   monFollowLog = true
   show($('mon-scroll-end'), false)
 }
 
+function detachMonitorFollow() {
+  monFollowLog = false
+  show($('mon-scroll-end'), true)
+  trimMonitorLines($('monitor-lines'), $('monitor-term'))
+}
+
 function updateMonitorFollowFromScroll() {
+  if (monFollowLog) return
   if (isMonitorAtBottom()) {
     monFollowLog = true
     show($('mon-scroll-end'), false)
-  } else {
-    monFollowLog = false
-    show($('mon-scroll-end'), true)
   }
+}
+
+function trimMonitorLines(linesEl, termEl) {
+  if (monFollowLog) return
+  const excess = linesEl.children.length - MONITOR_MAX_LINES
+  if (excess <= 0) return
+  let removed = 0
+  for (let i = 0; i < excess; i++) {
+    const first = linesEl.firstChild
+    if (!first) break
+    removed += first.offsetHeight
+    linesEl.removeChild(first)
+  }
+  termEl.scrollTop = Math.max(0, termEl.scrollTop - removed)
 }
 
 async function closeMonitor() {
@@ -1077,15 +1102,24 @@ function logLineClass(text, source) {
   return LOG_LINE_CLASS[classifyLogLine(text, source)] || 'text-neutral-700'
 }
 
-function appendLine(text, source) {
-  const div = document.createElement('div')
-  div.className = logLineClass(text, source)
-  div.textContent = text
-  $('monitor-lines').appendChild(div)
-  while ($('monitor-lines').children.length > 500)
-    $('monitor-lines').removeChild($('monitor-lines').firstChild)
-  if (monFollowLog) scrollMonitorToEnd()
+function appendMonitorLines(texts, source = '') {
+  if (!texts.length) return
+  const term = $('monitor-term')
+  const lines = $('monitor-lines')
+  const follow = monFollowLog
+  for (const text of texts) {
+    const div = document.createElement('div')
+    div.className = `${logLineClass(text, source)} leading-5`
+    div.textContent = text
+    lines.appendChild(div)
+  }
+  trimMonitorLines(lines, term)
+  if (follow) scrollMonitorToEnd()
   else show($('mon-scroll-end'), true)
+}
+
+function appendLine(text, source) {
+  appendMonitorLines([text], source)
 }
 
 $('mon-connect-btn').addEventListener('click', async () => {
@@ -1218,10 +1252,7 @@ $('mon-clear-btn').addEventListener('click', () => {
 })
 $('monitor-term').addEventListener('scroll', updateMonitorFollowFromScroll, { passive: true })
 $('monitor-term').addEventListener('wheel', e => {
-  if (e.deltaY < 0) {
-    monFollowLog = false
-    show($('mon-scroll-end'), true)
-  }
+  if (e.deltaY < 0) detachMonitorFollow()
 }, { passive: true })
 $('mon-scroll-end').addEventListener('click', scrollMonitorToEnd)
 $('mon-pd-send').addEventListener('submit', e => {
