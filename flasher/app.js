@@ -1242,6 +1242,21 @@ if ('serial' in navigator) {
     wakeMonitorMaintainer()
   })
 }
+// Stamped by CI (pages.yml) on every push; stays as the literal placeholders
+// when served from a working tree, so the footer shows "local dev build".
+const BUILD_SHA = '__BUILD__'
+const BUILD_DATE = '__BUILT_AT__'
+function renderBuildInfo() {
+  const el = $('build-info')
+  if (!el) return
+  if (BUILD_SHA.startsWith('__')) { el.textContent = 'local dev build'; return }
+  const date = BUILD_DATE.startsWith('__') ? '' : ` · ${BUILD_DATE}`
+  el.innerHTML = `build <a class="underline decoration-neutral-300 hover:text-black" `
+    + `href="https://github.com/ben-wes/espd-kits/commit/${BUILD_SHA}" target="_blank" rel="noopener">`
+    + `${BUILD_SHA.slice(0, 7)}</a>${date}`
+}
+
 fetchGithubReleases()
 render()
 updateMonitorToolbar()
+renderBuildInfo()
