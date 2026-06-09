@@ -5,7 +5,6 @@ import {
   collectSyncMtimes,
   connectAndPrepare,
   openAuthorizedPort,
-  openMonitorPort,
   prepareForSync,
   requestSerialPort,
   sleep,
@@ -55,8 +54,6 @@ let monMaintainerActive = false
 let monWakeWait = null
 let monPipeAbort = null
 let monConnecting = false
-let monActivityTimer = null
-const MON_CURSOR_IDLE_MS = 1200
 let pdMsgHistory = []
 let pdHistoryIdx = 0
 let pdHistoryDraft = ''
@@ -144,16 +141,6 @@ function wakeMonitorMaintainer() {
   }
 }
 
-function noteMonitorActivity() {
-}
-
-function clearMonitorCursor() {
-  if (monActivityTimer) {
-    clearTimeout(monActivityTimer)
-    monActivityTimer = null
-  }
-}
-
 function flushMonBuf() {
   if (monBuf.length > 65536) monBuf = monBuf.slice(-32768)
   let idx
@@ -178,18 +165,21 @@ function kickMonitorMaintainer() {
   const gen = monMaintainerGen
   ;(async () => {
     let announcedWait = false
-    let reconnectProbe = false
+    let firstOpen = true
     try {
       while (monWanted && !syncClient && gen === monMaintainerGen) {
         updateMonitorToolbar()
         const alive = () => monWanted && !syncClient && gen === monMaintainerGen
-        const opened = await openMonitorPort({
-          preferred: monPick,
-          probe: reconnectProbe,
-          probeMs: reconnectProbe ? 4000 : 8000,
-          isAlive: alive,
-        })
-        if (!opened || !alive()) {
+        // Reuse the same port-enumeration as patch sync: iterate getPorts(),
+        // prefer the freshly (re)connected port (monPick is updated by the
+        // 'connect' event after a RESET re-enumerates), open it fresh. No
+        // byte-probe, so a booted-but-quiet device still reconnects.
+        let port = null
+        try {
+          port = await openAuthorizedPort(2500, alive, monPick)
+        } catch (_) {}
+        if (!port || !alive()) {
+          if (port) { try { await port.close() } catch (_) {} }
           if (alive() && !announcedWait) {
             appendLine('waiting for serial port…', 'sync')
             announcedWait = true
@@ -202,27 +192,26 @@ function kickMonitorMaintainer() {
           continue
         }
         announcedWait = false
-        monPick = opened.port
-        monPort = opened.port
-        monBuf = opened.initial || ''
-        flushMonBuf()
-        if (reconnectProbe) appendLine('monitor reconnected', 'sync')
+        monPick = port
+        monPort = port
+        monBuf = ''
+        if (!firstOpen) appendLine('monitor reconnected', 'sync')
         monFollowLog = true
         updateMonitorToolbar()
         try {
-          monLoopPromise = readMonitorLoop(opened.port)
+          monLoopPromise = readMonitorLoop(port)
           await monLoopPromise
         } finally {
           monLoopPromise = null
           stopMonitorPipe()
           monPort = null
           monReader = null
-          try { await opened.port.close() } catch (_) {}
+          try { await port.close() } catch (_) {}
           updateMonitorToolbar()
         }
+        firstOpen = false
         if (alive()) {
           appendLine('port closed — waiting to reconnect…', 'sync')
-          reconnectProbe = true
         }
       }
     } finally {
@@ -929,7 +918,6 @@ function showMonitorDisconnected() {
   monLogOpen = false
   syncLogOpen = false
   setMonitorExpanded(false)
-  clearMonitorCursor()
   show($('mon-scroll-end'), false)
   monFollowLog = true
   updateMonitorToolbar()
@@ -1080,7 +1068,6 @@ function appendLine(text, source) {
   $('monitor-lines').appendChild(div)
   while ($('monitor-lines').children.length > 500)
     $('monitor-lines').removeChild($('monitor-lines').firstChild)
-  if (source !== 'sync') noteMonitorActivity()
   if (monFollowLog) scrollMonitorToEnd()
   else show($('mon-scroll-end'), true)
 }
@@ -1125,7 +1112,6 @@ async function readMonitorLoop(port) {
     while (monPort === port && monWanted) {
       const { value, done } = await reader.read()
       if (done) break
-      if (value) noteMonitorActivity()
       monBuf += value ?? ''
       flushMonBuf()
     }
@@ -1167,7 +1153,6 @@ $('mon-reset-btn').addEventListener('click', async () => {
 })
 $('mon-clear-btn').addEventListener('click', () => {
   $('monitor-lines').innerHTML = ''
-  clearMonitorCursor()
   scrollMonitorToEnd()
 })
 $('monitor-term').addEventListener('scroll', updateMonitorFollowFromScroll, { passive: true })

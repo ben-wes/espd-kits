@@ -386,59 +386,6 @@ async function openPortFresh(port, timeoutMs, isAlive = () => true) {
   await sleep(200)
 }
 
-async function sniffMonitorData(port, maxMs, isAlive = () => true) {
-  const reader = port.readable.getReader()
-  const dec = new TextDecoder()
-  try {
-    const deadline = Date.now() + maxMs
-    while (Date.now() < deadline) {
-      if (!isAlive()) return null
-      let tick
-      const result = await Promise.race([
-        reader.read(),
-        sleep(350).then(() => { tick = true }),
-      ])
-      if (tick) continue
-      const { value, done } = result
-      if (done) return null
-      if (value?.byteLength) return dec.decode(value, { stream: true })
-    }
-    return null
-  } finally {
-    try { await reader.cancel() } catch (_) { }
-    try { reader.releaseLock() } catch (_) { }
-  }
-}
-
-/** Open picked port only. Fresh: fast open. Reconnect: probe for bytes first. */
-export async function openMonitorPort({
-  preferred = null,
-  probe = false,
-  probeMs = 8000,
-  openTimeoutMs = 2500,
-  isAlive = () => true,
-} = {}) {
-  if (!preferred || !isAlive()) return null
-  try {
-    if (probe) {
-      await openPortFresh(preferred, openTimeoutMs, isAlive)
-      if (!isAlive()) {
-        try { await preferred.close() } catch (_) { }
-        return null
-      }
-      const initial = await sniffMonitorData(preferred, probeMs, isAlive)
-      if (initial !== null) return { port: preferred, initial }
-      try { await preferred.close() } catch (_) { }
-      return null
-    }
-    await openPortFresh(preferred, openTimeoutMs, isAlive)
-    return { port: preferred, initial: '' }
-  } catch (_) {
-    try { await preferred.close() } catch (_) { }
-    return null
-  }
-}
-
 export async function openAuthorizedPort(timeoutMs = 3000, isAlive = () => true, preferred = null) {
   const ports = await navigator.serial.getPorts()
   // Try the freshly (re)connected port first. After a RESET the device
@@ -536,21 +483,11 @@ export async function waitForStorageReady(client, onLog, maxSec = 45) {
 export async function ensureStorageForWrite(client, callbacks) {
   const onLog = callbacks?.onLog || (() => { })
 
-  /* Device is in drive mode (internal flash owned by the host). Ask it to leave
-   * drive mode IN PLACE (MSC_SYNC) — it hands /storage back to the app without a
-   * reboot, so the CDC link stays up and we just poll STATUS until it's ready.
-   * Far faster and more reliable than RESET + reconnect. */
-  onLog('internal storage in drive mode -- requesting handoff (MSC_SYNC)')
-  try {
-    await client.command('MSC_SYNC', 3000)
-    const info = await waitForStorageReady(client, onLog)
-    if (info.internal === 'yes') return client
-  } catch (e) {
-    onLog(`MSC_SYNC failed (${e.message || e}); falling back to reset`)
-  }
-
-  /* Fallback for older firmware without MSC_SYNC: reboot into Pd mode. */
-  onLog('internal storage not available -- resetting device')
+  /* Device is in drive mode (internal flash owned by the host USB volume). A
+   * software RESET reboots straight back into Pd mode with /storage owned by the
+   * app, so PUT works; the CDC link drops and we reconnect to the re-enumerated
+   * port. */
+  onLog('internal storage in drive mode -- resetting device')
   await client.resetDevice()
   await client.close()
   await sleep(500)
@@ -605,8 +542,10 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect) {
         const sent = await client.putFile(rel, data)
         if (sent) {
           uploaded++
+          // config.txt is only read at boot, so it needs a RESET; any other file
+          // (patch or asset) just needs main.pd reloaded to pick up the change.
           if (rel === 'config.txt') resetNeeded = true
-          else if (rel.endsWith('.pd')) reloadNeeded = true
+          else reloadNeeded = true
         } else {
           onLog?.(`skip ${rel} (unchanged)`)
           skipped++
@@ -614,14 +553,7 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect) {
         break
       } catch (e) {
         const msg = String(e.message || e)
-        if (/timeout|disconnect|closed|break|null/i.test(msg)) {
-          onLog?.(`disconnect during PUT ${rel}; reconnecting…`)
-          await client.close().catch(() => { })
-          client = await reconnect()
-          client = await prepareForSync(client, { onLog })
-          continue
-        }
-        if (/not mounted|crc/i.test(msg)) {
+        if (/timeout|disconnect|closed|break|null|not mounted|crc/i.test(msg)) {
           onLog?.(`${msg}; reconnecting…`)
           await client.close().catch(() => { })
           client = await reconnect()

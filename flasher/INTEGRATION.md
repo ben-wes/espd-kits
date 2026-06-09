@@ -54,8 +54,8 @@ python3 scripts/generate-manifest.py --version v0.1.0 \
 
 `sync.js` implements the same CDC protocol as [`espd/scripts/espd_sync.py`](../espd/scripts/espd_sync.py):
 
-- `STATUS`, `PUT`, `RELOAD`, `RESET`, `MODE MSC_SYNC` (reset board to leave msc_sync)
-- Prepares SD (`/sdcard`) or internal flash (`/storage` via **msc_sync** reboot)
+- `STATUS`, `PUT`, `RELOAD`, `RESET`
+- Prepares SD (`/sdcard`); if the internal flash is in host-drive mode, `RESET` reboots into Pd mode (`/storage`)
 - After reboot, reconnects via `navigator.serial.getPorts()` (port must stay authorized)
 
 **Browser limits:**
