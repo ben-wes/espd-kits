@@ -18,7 +18,6 @@ features:
     - ESPD_USE_AIN
     - ESPD_USE_AOUT
     - ESPD_USE_WIFI
-    - ESPD_USE_USB_OTG
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
