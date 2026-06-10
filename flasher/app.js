@@ -13,6 +13,7 @@ import {
   syncFileList,
   syncStorePath,
   waitForAuthorizedPort,
+  serialLinkLabel,
 } from './sync.js?v=__BUILD__'
 
 const REPO = 'ben-wes/espd-kits'
@@ -942,8 +943,9 @@ function updateMonitorToolbar() {
       '<span class="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span> waiting for device'
   } else if (monPort && !syncActive) {
     show($('mon-status'), true)
+    const linkLabel = serialLinkLabel(monPort)
     $('mon-status').innerHTML =
-      '<span class="h-1.5 w-1.5 rounded-full bg-green-600"></span> 115200 baud'
+      `<span class="h-1.5 w-1.5 rounded-full bg-green-600"></span> ${linkLabel}`
   } else if (monWanted && !monPort) {
     show($('mon-status'), true)
     $('mon-status').innerHTML =

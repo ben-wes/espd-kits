@@ -2,9 +2,26 @@
 
 const PUT_CHUNK = 4096
 const PUT_BPS = 800000
+const SERIAL_BAUD = 921600
+const ESPRESSIF_USB_VENDOR = 0x303a
+const ESPRESSIF_USB_JTAG_PID = 0x1001
 const STATUS_RE = /^\+OK STATUS sdcard=(yes|no) internal=(yes|no)$/
 const PUT_DONE_RE = /^\+OK PUT done ([0-9a-fA-F]{8})$/
 const LIST_DONE_RE = /^\+OK LIST done (\d+)$/
+
+/** Monitor badge: USB links ignore baud; UART shows the open rate. */
+export function serialLinkLabel(port) {
+  try {
+    const usb = port?.getInfo?.() ?? {}
+    if (!usb.usbVendorId) return `${SERIAL_BAUD} baud`
+    if (usb.usbVendorId === ESPRESSIF_USB_VENDOR && usb.usbProductId === ESPRESSIF_USB_JTAG_PID)
+      return 'USB JTAG'
+    if (usb.usbVendorId === ESPRESSIF_USB_VENDOR) return 'USB CDC'
+    return 'USB serial'
+  } catch (_) {
+    return `${SERIAL_BAUD} baud`
+  }
+}
 
 export function devPathOk(rel) {
   if (!rel || rel.startsWith('/') || rel.includes('\\')) return false
@@ -90,13 +107,13 @@ export async function collectSyncMtimes(dirHandle, prefix = '') {
 export async function ensurePortOpen(port) {
   if (port.readable && port.writable) return
   try {
-    await port.open({ baudRate: 115200 })
+    await port.open({ baudRate: SERIAL_BAUD })
   } catch (e) {
     const msg = String(e.message || e)
     if (msg.includes('already open')) {
       try { await port.close() } catch (_) { }
       await sleep(200)
-      await port.open({ baudRate: 115200 })
+      await port.open({ baudRate: SERIAL_BAUD })
     } else {
       throw e
     }
@@ -436,7 +453,7 @@ async function openPortFresh(port, timeoutMs, isAlive = () => true) {
   })()
   try {
     await Promise.race([
-      port.open({ baudRate: 115200 }),
+      port.open({ baudRate: SERIAL_BAUD }),
       new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error('open timeout')), timeoutMs)
       }),
