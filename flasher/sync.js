@@ -731,6 +731,10 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect, { 
           client = await prepareForSync(client, { onLog })
           continue
         }
+        if (/no space/i.test(msg)) {
+          onLog?.(`skip ${rel} (device full)`)
+          break
+        }
         throw e
       }
     }
