@@ -1,6 +1,5 @@
 /** ESPD CDC dev sync (browser port of espd/scripts/espd_sync.py core). */
 
-const PUT_WINDOW = 32768
 const SERIAL_BAUD = 921600
 
 const ESPRESSIF_USB_VENDOR = 0x303a
@@ -8,6 +7,14 @@ const ESPRESSIF_USB_JTAG_PID = 0x1001
 const STATUS_RE = /^\+OK STATUS sdcard=(yes|no) internal=(yes|no)$/
 const PUT_DONE_RE = /^\+OK PUT done ([0-9a-fA-F]{8})$/
 const PUT_ACK_RE = /^\+OK PUT ack (\d+)$/
+const PUT_READY_RE = /^\+OK PUT ready window=(\d+)$/
+
+function parsePutWindow(line) {
+  const m = String(line).trim().match(PUT_READY_RE)
+  if (!m) return null
+  const w = parseInt(m[1], 10)
+  return w > 0 ? w : null
+}
 const LIST_DONE_RE = /^\+OK LIST done (\d+)$/
 
 /** Monitor badge: USB links ignore baud; UART shows the open rate. */
@@ -388,20 +395,24 @@ export class EspdSyncClient {
       }
     }
     if (line.startsWith('+OK PUT skip')) return false
-    if (!line.startsWith('+OK PUT ready')) {
+    const putWindow = parsePutWindow(line)
+    if (!putWindow) {
       if (line.startsWith('-ERR')) throw new Error(line)
+      if (/^\+OK PUT ready\b/.test(line.trim())) {
+        throw new Error('PUT ready missing window= (update firmware)')
+      }
       throw new Error(`unexpected PUT reply: ${line}`)
     }
-    this.log(`sending ${nbytes} bytes for ${relPath}`)
+    this.log(`sending ${nbytes} bytes for ${relPath} (window ${putWindow})`)
     this.putActive = true
     const ackTimeout = Math.max(30000, nbytes / 40)
     try {
       this._clearPendingReply()
       let acked = 0
       let lastLog = 0
-      for (let off = 0; off < data.length; off += PUT_WINDOW) {
+      for (let off = 0; off < data.length; off += putWindow) {
         if (!this.writer) throw new Error('serial disconnected')
-        const part = data.subarray(off, off + PUT_WINDOW)
+        const part = data.subarray(off, off + putWindow)
         try {
           await this.writer.write(part)
         } catch (e) {
