@@ -71,8 +71,12 @@ function syncCallbacks(gen = syncMaintainerGen) {
     setReconnecting(v) { syncReconnecting = v },
     onDisconnect: onSyncDisconnect,
     onLine(line, kind) {
-      if (kind === 'device') appendLine(line)
-      else syncLog(`← ${line}`)
+      if (kind === 'device') {
+        if (line.startsWith('+OK PUT ack')) return
+        appendLine(line)
+      } else {
+        syncLog(`← ${line}`)
+      }
     },
     isAlive: () => syncWanted && gen === syncMaintainerGen,
   }
@@ -1128,11 +1132,18 @@ function appendMonitorLines(texts, source = '') {
   const term = $('monitor-term')
   const lines = $('monitor-lines')
   const follow = monFollowLog
-  for (const text of texts) {
-    const div = document.createElement('div')
-    div.className = `${logLineClass(text, source)} leading-5`
-    div.textContent = text
-    lines.appendChild(div)
+  for (let text of texts) {
+    const cr = text.endsWith('\r')
+    if (cr) text = text.slice(0, -1)
+    if (cr && lines.lastChild) {
+      // Update last line for progress (carriage return)
+      lines.lastChild.textContent = text
+    } else {
+      const div = document.createElement('div')
+      div.className = `${logLineClass(text, source)} leading-5`
+      div.textContent = text
+      lines.appendChild(div)
+    }
   }
   trimMonitorLines(lines, term)
   if (follow) scrollMonitorToEnd()
@@ -1217,11 +1228,9 @@ async function readMonitorLoop(port) {
 
 $('mon-reload-btn').addEventListener('click', async () => {
   if (!syncClient && !monPort) return
-  syncLog('Reloading main.pd…')
   try {
     if (syncClient) {
       await syncClient.reload()
-      syncLog('RELOAD sent')
     } else {
       appendLine('→ RELOAD', 'sync')
       await writeSerialCommand(monPort, 'RELOAD')

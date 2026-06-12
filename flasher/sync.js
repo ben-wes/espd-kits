@@ -236,7 +236,10 @@ export class EspdSyncClient {
           const line = raw.replace(/\r$/, '').trim()
           if (!line) continue
           if (this.putActive) {
-            if (line.startsWith('+OK PUT ack') || line.startsWith('+OK PUT done') || line.startsWith('-ERR')) {
+            if (line.startsWith('+OK PUT ack')) {
+              // Silently resolve; progress shown via percentage in putFile
+              this._resolveReply(line)
+            } else if (line.startsWith('+OK PUT done') || line.startsWith('-ERR')) {
               this.onLine(line, 'dev')
               this._resolveReply(line)
             }
@@ -403,13 +406,14 @@ export class EspdSyncClient {
       }
       throw new Error(`unexpected PUT reply: ${line}`)
     }
-    this.log(`sending ${nbytes} bytes for ${relPath} (window ${putWindow})`)
+    this.onLog?.(`sending ${nbytes} bytes for ${relPath} (window ${putWindow})`)
     this.putActive = true
     const ackTimeout = Math.max(30000, nbytes / 40)
+    const progressPrefix = `  ${relPath}: `
     try {
       this._clearPendingReply()
       let acked = 0
-      let lastLog = 0
+      let lastPct = -1
       for (let off = 0; off < data.length; off += putWindow) {
         if (!this.writer) throw new Error('serial disconnected')
         const part = data.subarray(off, off + putWindow)
@@ -429,9 +433,10 @@ export class EspdSyncClient {
         if (acked !== off + part.length) {
           throw new Error(`PUT ack mismatch: expected ${off + part.length}, got ${acked}`)
         }
-        if (nbytes > 512 * 1024 && acked - lastLog >= 1024 * 1024) {
-          lastLog = acked
-          this.log(`  ${Math.round((acked / nbytes) * 100)}% on device`)
+        const pct = Math.round((acked / nbytes) * 100)
+        if (pct !== lastPct) {
+          lastPct = pct
+          this.onLog?.(`${progressPrefix}${pct}%\r`)
         }
       }
       const doneLine = await this._waitReply(doneTimeout)
@@ -524,7 +529,6 @@ export async function waitForAuthorizedPort(timeoutMs = 60000, callbacks = {}) {
   if (typeof navigator !== 'undefined' && navigator.serial?.addEventListener) {
     navigator.serial.addEventListener('connect', onConnect)
   }
-  onLog('waiting for CDC after reboot…')
   try {
     while (Date.now() < deadline) {
       if (!isAlive()) throw new Error('aborted')
@@ -548,7 +552,6 @@ export async function waitForAuthorizedPort(timeoutMs = 60000, callbacks = {}) {
             }
             try {
               const info = await client.status(1200)
-              onLog(`connected: +OK STATUS sdcard=${info.sdcard} internal=${info.internal}`)
               return client
             } catch (_) { }
           }
@@ -716,7 +719,6 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect, { 
           if (rel === 'config.txt') resetNeeded = true
           else reloadNeeded = true
         } else {
-          onLog?.(`skip ${rel} (unchanged)`)
           skipped++
         }
         break
@@ -741,7 +743,6 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect, { 
     client = await reconnect()
     client = await prepareForSync(client, { onLog })
   } else if (reloadNeeded) {
-    onLog?.('RELOAD')
     try { await client.reload() } catch (_) {
       onLog?.('timeout during RELOAD (patch may still reload on device)')
     }
