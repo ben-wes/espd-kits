@@ -1,15 +1,13 @@
 /** ESPD CDC dev sync (browser port of espd/scripts/espd_sync.py core). */
 
-// USB CDC ignores baud; pace PUT payload so the device can drain RX buffers.
-const PUT_CHUNK = 8192
-const PUT_BPS_FLASH = 400_000
-const PUT_BPS_SD = 1_000_000
+const PUT_WINDOW = 32768
 const SERIAL_BAUD = 921600
 
 const ESPRESSIF_USB_VENDOR = 0x303a
 const ESPRESSIF_USB_JTAG_PID = 0x1001
 const STATUS_RE = /^\+OK STATUS sdcard=(yes|no) internal=(yes|no)$/
 const PUT_DONE_RE = /^\+OK PUT done ([0-9a-fA-F]{8})$/
+const PUT_ACK_RE = /^\+OK PUT ack (\d+)$/
 const LIST_DONE_RE = /^\+OK LIST done (\d+)$/
 
 /** Monitor badge: USB links ignore baud; UART shows the open rate. */
@@ -151,15 +149,6 @@ export class EspdSyncClient {
     this.onLog(msg)
   }
 
-  async putStreamBps() {
-    try {
-      const info = await this.deviceStatus(3000)
-      return info.sdcard === 'yes' ? PUT_BPS_SD : PUT_BPS_FLASH
-    } catch (_) {
-      return PUT_BPS_FLASH
-    }
-  }
-
   async open() {
     await ensurePortOpen(this.port)
     if (this.reader) {
@@ -240,7 +229,7 @@ export class EspdSyncClient {
           const line = raw.replace(/\r$/, '').trim()
           if (!line) continue
           if (this.putActive) {
-            if (line.startsWith('+OK PUT done') || line.startsWith('-ERR')) {
+            if (line.startsWith('+OK PUT ack') || line.startsWith('+OK PUT done') || line.startsWith('-ERR')) {
               this.onLine(line, 'dev')
               this._resolveReply(line)
             }
@@ -403,45 +392,42 @@ export class EspdSyncClient {
       if (line.startsWith('-ERR')) throw new Error(line)
       throw new Error(`unexpected PUT reply: ${line}`)
     }
-    const putBps = await this.putStreamBps()
-    const sdFast = putBps === PUT_BPS_SD
-    this.log(`sending ${nbytes} bytes for ${relPath}${sdFast ? ' (SD)' : ''}`)
+    this.log(`sending ${nbytes} bytes for ${relPath}`)
     this.putActive = true
+    const ackTimeout = Math.max(30000, nbytes / 40)
     try {
-      let nextSend = performance.now()
+      this._clearPendingReply()
+      let acked = 0
       let lastLog = 0
-      for (let off = 0; off < data.length; off += PUT_CHUNK) {
+      for (let off = 0; off < data.length; off += PUT_WINDOW) {
         if (!this.writer) throw new Error('serial disconnected')
-        const part = data.subarray(off, off + PUT_CHUNK)
+        const part = data.subarray(off, off + PUT_WINDOW)
         try {
           await this.writer.write(part)
         } catch (e) {
           this._markDisconnected()
           throw new Error(`serial disconnected: ${e.message || e}`)
         }
-        if (putBps > 0) {
-          nextSend += (part.length / putBps) * 1000
-          const wait = nextSend - performance.now()
-          if (wait > 0) await sleep(wait)
+        const ackLine = await this._waitReply(ackTimeout)
+        const am = ackLine.trim().match(PUT_ACK_RE)
+        if (!am) {
+          if (ackLine.startsWith('-ERR')) throw new Error(ackLine)
+          throw new Error(`unexpected PUT reply: ${ackLine}`)
         }
-        if (nbytes > 512 * 1024 && off - lastLog >= 1024 * 1024) {
-          lastLog = off
-          this.log(`  ${Math.round((off / nbytes) * 100)}% sent`)
+        acked = parseInt(am[1], 10)
+        if (acked !== off + part.length) {
+          throw new Error(`PUT ack mismatch: expected ${off + part.length}, got ${acked}`)
+        }
+        if (nbytes > 512 * 1024 && acked - lastLog >= 1024 * 1024) {
+          lastLog = acked
+          this.log(`  ${Math.round((acked / nbytes) * 100)}% on device`)
         }
       }
-      if (nbytes > 512 * 1024) this.log('  100% sent')
-      if (putBps > 0) {
-        const soakMs = Math.max(250, (PUT_CHUNK * 8 / putBps) * 1000)
-        await sleep(soakMs)
-      }
-      this.log('payload sent — waiting for device commit…')
-      while (true) {
-        const doneLine = await this._waitReply(doneTimeout)
-        const m = doneLine.trim().match(PUT_DONE_RE)
-        if (m && parseInt(m[1], 16) === crc) return true
-        if (doneLine.startsWith('-ERR')) throw new Error(doneLine)
-        throw new Error(`unexpected PUT reply: ${doneLine}`)
-      }
+      const doneLine = await this._waitReply(doneTimeout)
+      const m = doneLine.trim().match(PUT_DONE_RE)
+      if (m && parseInt(m[1], 16) === crc) return true
+      if (doneLine.startsWith('-ERR')) throw new Error(doneLine)
+      throw new Error(`unexpected PUT reply: ${doneLine}`)
     } finally {
       this.putActive = false
     }
