@@ -1,8 +1,11 @@
 /** ESPD CDC dev sync (browser port of espd/scripts/espd_sync.py core). */
 
-const PUT_CHUNK = 4096
-const PUT_BPS = 800000
+// USB CDC ignores baud; pace PUT payload so the device can drain RX buffers.
+const PUT_CHUNK = 8192
+const PUT_BPS_FLASH = 400_000
+const PUT_BPS_SD = 1_000_000
 const SERIAL_BAUD = 921600
+
 const ESPRESSIF_USB_VENDOR = 0x303a
 const ESPRESSIF_USB_JTAG_PID = 0x1001
 const STATUS_RE = /^\+OK STATUS sdcard=(yes|no) internal=(yes|no)$/
@@ -146,6 +149,15 @@ export class EspdSyncClient {
 
   log(msg) {
     this.onLog(msg)
+  }
+
+  async putStreamBps() {
+    try {
+      const info = await this.deviceStatus(3000)
+      return info.sdcard === 'yes' ? PUT_BPS_SD : PUT_BPS_FLASH
+    } catch (_) {
+      return PUT_BPS_FLASH
+    }
   }
 
   async open() {
@@ -312,7 +324,7 @@ export class EspdSyncClient {
     throw new Error(line)
   }
 
-  deviceStatus(timeoutMs = 10000) {
+  async deviceStatus(timeoutMs = 10000) {
     if (this.lastStatus?.startsWith('+OK STATUS')) return parseStatus(this.lastStatus)
     return this.status(timeoutMs)
   }
@@ -391,10 +403,13 @@ export class EspdSyncClient {
       if (line.startsWith('-ERR')) throw new Error(line)
       throw new Error(`unexpected PUT reply: ${line}`)
     }
-    this.log(`sending ${nbytes} bytes for ${relPath}`)
+    const putBps = await this.putStreamBps()
+    const sdFast = putBps === PUT_BPS_SD
+    this.log(`sending ${nbytes} bytes for ${relPath}${sdFast ? ' (SD)' : ''}`)
     this.putActive = true
     try {
       let nextSend = performance.now()
+      let lastLog = 0
       for (let off = 0; off < data.length; off += PUT_CHUNK) {
         if (!this.writer) throw new Error('serial disconnected')
         const part = data.subarray(off, off + PUT_CHUNK)
@@ -404,10 +419,22 @@ export class EspdSyncClient {
           this._markDisconnected()
           throw new Error(`serial disconnected: ${e.message || e}`)
         }
-        nextSend += (part.length / PUT_BPS) * 1000
-        const wait = nextSend - performance.now()
-        if (wait > 0) await sleep(wait)
+        if (putBps > 0) {
+          nextSend += (part.length / putBps) * 1000
+          const wait = nextSend - performance.now()
+          if (wait > 0) await sleep(wait)
+        }
+        if (nbytes > 512 * 1024 && off - lastLog >= 1024 * 1024) {
+          lastLog = off
+          this.log(`  ${Math.round((off / nbytes) * 100)}% sent`)
+        }
       }
+      if (nbytes > 512 * 1024) this.log('  100% sent')
+      if (putBps > 0) {
+        const soakMs = Math.max(250, (PUT_CHUNK * 8 / putBps) * 1000)
+        await sleep(soakMs)
+      }
+      this.log('payload sent — waiting for device commit…')
       while (true) {
         const doneLine = await this._waitReply(doneTimeout)
         const m = doneLine.trim().match(PUT_DONE_RE)
