@@ -39,9 +39,6 @@ export function devPathOk(rel) {
   return true
 }
 
-const PATCH_SUFFIXES = ['.pd']
-const ASSET_SUFFIXES = ['.wav', '.aiff', '.aif', '.flac', '.ogg', '.mp3', '.raw', '.sf2', '.mid']
-
 export function sleep(ms) {
   return new Promise(r => setTimeout(r, ms))
 }
@@ -65,21 +62,13 @@ export function syncStorePath(info) {
   return info.sdcard === 'yes' ? '/sdcard' : '/storage'
 }
 
-function syncNameOk(name) {
-  if (!name || name.startsWith('.')) return false
-  const low = name.toLowerCase()
-  if (name === 'config.txt') return true
-  if (PATCH_SUFFIXES.some(s => low.endsWith(s))) return true
-  return ASSET_SUFFIXES.some(s => low.endsWith(s))
-}
-
 export async function collectSyncFiles(dirHandle, prefix = '') {
   const out = []
   for await (const [name, handle] of dirHandle.entries()) {
     if (name.startsWith('.')) continue
     const rel = prefix + name
     if (handle.kind === 'file') {
-      if (syncNameOk(name)) out.push(rel)
+      out.push(rel)
     } else if (handle.kind === 'directory') {
       out.push(...await collectSyncFiles(handle, rel + '/'))
     }
@@ -101,10 +90,8 @@ export async function collectSyncMtimes(dirHandle, prefix = '') {
     if (name.startsWith('.')) continue
     const rel = prefix + name
     if (handle.kind === 'file') {
-      if (syncNameOk(name)) {
-        const file = await handle.getFile()
-        out.set(rel, file.lastModified)
-      }
+      const file = await handle.getFile()
+      out.set(rel, file.lastModified)
     } else if (handle.kind === 'directory') {
       for (const [k, v] of await collectSyncMtimes(handle, rel + '/')) out.set(k, v)
     }
@@ -126,12 +113,6 @@ export async function ensurePortOpen(port) {
       throw e
     }
   }
-}
-
-function syncOrder(rel) {
-  if (rel === 'main.pd') return [2, rel]
-  if (rel.endsWith('.pd') || rel === 'config.txt') return [1, rel]
-  return [0, rel]
 }
 
 export class EspdSyncClient {
@@ -703,19 +684,14 @@ export async function syncFileList(client, dirHandle, rels, onLog, reconnect, { 
     client = await mirrorPrune(client, rels, onLog, reconnect)
   }
 
-  for (const rel of [...rels].sort((a, b) => {
-    const [oa, ra] = syncOrder(a)
-    const [ob, rb] = syncOrder(b)
-    return oa - ob || ra.localeCompare(rb)
-  })) {
+  for (const rel of [...rels].sort((a, b) => a.localeCompare(b))) {
     const data = await readFileBytes(dirHandle, rel)
     while (true) {
       try {
         const sent = await client.putFile(rel, data)
         if (sent) {
           uploaded++
-          // config.txt is only read at boot, so it needs a RESET; any other file
-          // (patch or asset) just needs main.pd reloaded to pick up the change.
+          // config.txt is only read at boot; everything else needs RELOAD.
           if (rel === 'config.txt') resetNeeded = true
           else reloadNeeded = true
         } else {
