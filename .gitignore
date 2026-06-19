@@ -10,6 +10,9 @@ __pycache__/
 .env
 node_modules/
 
+# Generated board plugin components (gen_board_plugins.py emits into espd/)
+/components/
+
 # espd build artifacts if built in-tree
 espd/build/
 espd/sdkconfig

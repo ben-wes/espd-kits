@@ -17,4 +17,9 @@ python3 "${ESPD}/scripts/gen_board_plugins.py" "${ESPD}" --boards-dir "${BOARDS_
 # set-target runs kconfgen before CMake; stale sdkconfig would hide the board choice.
 rm -f "${ESPD}/sdkconfig" "${ESPD}/sdkconfig.old"
 
+if [[ "${1:-}" == "--refresh-managed" ]] || [[ "${ESPD_REFRESH_MANAGED:-}" == "1" ]]; then
+  rm -rf "${ESPD}/managed_components" "${ESPD}/dependencies.lock"
+  echo "prepare-board-build: removed managed_components + dependencies.lock"
+fi
+
 echo "prepare-board-build: plugins from ${BOARDS_DIR} (sdkconfig cleared)"

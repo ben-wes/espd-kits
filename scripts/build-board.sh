@@ -42,8 +42,19 @@ python3 "${ROOT}/scripts/generate-manifest.py" --select "${BOARD_ID}" \
 "${ROOT}/scripts/prepare-board-build.sh"
 
 cd "${ESPD}"
+
+# sdkconfig was just deleted — drop stale CMake/object artifacts too.
+if [[ ! -f sdkconfig ]]; then
+  idf.py fullclean
+fi
+
 idf.py set-target "${TARGET}"
+
 idf.py build
+
+echo "build-board: sdkconfig highlights:"
+grep -E "^(CONFIG_ESPD_BOARD_|CONFIG_ESP_MAIN_TASK_AFFINITY|CONFIG_ESP_HOSTED_ENABLED=)" \
+  sdkconfig 2>/dev/null | head -10 || true
 
 mkdir -p "${DIST}"
 cp -f build/espd.bin \
