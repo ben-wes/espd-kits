@@ -1,4 +1,4 @@
-/** ESPD CDC dev sync (browser port of espd/scripts/espd_sync.py core). */
+/** ESPD dev sync over Web Serial (CDC or UART bridge — same STATUS/PUT protocol). */
 
 const SERIAL_BAUD = 921600
 
@@ -99,16 +99,16 @@ export async function collectSyncMtimes(dirHandle, prefix = '') {
   return out
 }
 
-export async function ensurePortOpen(port) {
+export async function ensurePortOpen(port, baud = SERIAL_BAUD) {
   if (port.readable && port.writable) return
   try {
-    await port.open({ baudRate: SERIAL_BAUD })
+    await port.open({ baudRate: baud })
   } catch (e) {
     const msg = String(e.message || e)
     if (msg.includes('already open')) {
       try { await port.close() } catch (_) { }
       await sleep(200)
-      await port.open({ baudRate: SERIAL_BAUD })
+      await port.open({ baudRate: baud })
     } else {
       throw e
     }
@@ -451,7 +451,7 @@ export async function requestSerialPort() {
   return navigator.serial.requestPort()
 }
 
-async function openPortFresh(port, timeoutMs, isAlive = () => true) {
+async function openPortFresh(port, timeoutMs, isAlive = () => true, baud = SERIAL_BAUD) {
   if (!isAlive()) throw new Error('aborted')
   try { await port.close() } catch (_) { }
   await sleep(300)
@@ -463,7 +463,7 @@ async function openPortFresh(port, timeoutMs, isAlive = () => true) {
   })()
   try {
     await Promise.race([
-      port.open({ baudRate: SERIAL_BAUD }),
+      port.open({ baudRate: baud }),
       new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error('open timeout')), timeoutMs)
       }),
@@ -474,22 +474,79 @@ async function openPortFresh(port, timeoutMs, isAlive = () => true) {
   }
 }
 
+/** Open port, probe STATUS, return a live client or null. */
+export async function connectSyncClient(port, callbacks, isAlive = () => true) {
+  if (!isAlive()) throw new Error('aborted')
+  try {
+    await openPortFresh(port, 2000, isAlive)
+  } catch (e) {
+    if (String(e.message || e) === 'aborted') throw e
+    return null
+  }
+  const client = new EspdSyncClient(port, callbacks)
+  try {
+    await client.open()
+    for (let i = 0; i < 4; i++) {
+      if (!isAlive()) {
+        await client.close()
+        throw new Error('aborted')
+      }
+      try {
+        await client.status(1200)
+        return client
+      } catch (_) { }
+    }
+  } catch (e) {
+    if (e.message === 'aborted') throw e
+  }
+  await client.close().catch(() => { })
+  try { await port.close() } catch (_) { }
+  return null
+}
+
+/** Probe STATUS, reopen for monitor-only (no sync client). */
+export async function prepareMonitorPort(port, isAlive = () => true) {
+  if (!isAlive()) return false
+  try {
+    await openPortFresh(port, 2000, isAlive)
+  } catch (_) {
+    return false
+  }
+  const client = new EspdSyncClient(port, {})
+  let matched = false
+  try {
+    await client.open()
+    for (let i = 0; i < 3; i++) {
+      if (!isAlive()) return false
+      try {
+        await client.status(1000)
+        matched = true
+        break
+      } catch (_) { }
+    }
+  } finally {
+    await client.close().catch(() => { })
+  }
+  if (!matched) {
+    try { await port.close() } catch (_) { }
+    return false
+  }
+  try {
+    await openPortFresh(port, 2000, isAlive)
+    return !!(port.readable && port.writable)
+  } catch (_) {
+    try { await port.close() } catch (_) { }
+    return false
+  }
+}
+
 export async function openAuthorizedPort(timeoutMs = 3000, isAlive = () => true, preferred = null) {
   const ports = await navigator.serial.getPorts()
-  // Try the freshly (re)connected port first. After a RESET the device
-  // re-enumerates and the 'connect' event hands us the exact new port; opening
-  // it immediately avoids burning the open timeout on the dead pre-reboot handle
-  // (the "stuck for seconds … waiting for CDC after reboot" stall).
   const ordered = (preferred && ports.includes(preferred))
     ? [preferred, ...ports.filter(p => p !== preferred)]
     : ports
   for (const port of ordered) {
     try {
-      // Force a clean close+reopen: after a USB reboot Chrome reuses the same
-      // SerialPort object with stale (dead) readable/writable handles, so the
-      // lenient ensurePortOpen() would "succeed" onto a dead stream and STATUS
-      // would never reply (stuck at "waiting for CDC after reboot…").
-      // openPortFresh() discards the stale streams.
       await openPortFresh(port, timeoutMs, isAlive)
       return port
     } catch (e) {
@@ -513,39 +570,13 @@ export async function waitForAuthorizedPort(timeoutMs = 60000, callbacks = {}) {
   try {
     while (Date.now() < deadline) {
       if (!isAlive()) throw new Error('aborted')
-      const port = await openAuthorizedPort(2000, isAlive, justConnected)
-      if (port) {
-        if (!isAlive()) {
-          try { await port.close() } catch (_) { }
-          throw new Error('aborted')
-        }
-        const client = new EspdSyncClient(port, callbacks)
-        try {
-          await client.open()
-          // Only a few STATUS tries per open: after a RESET the device
-          // re-enumerates and this open may have landed on stale/dead CDC
-          // streams. Bail quickly so the outer loop re-opens FRESH streams (via
-          // openPortFresh) rather than burning ~35s retrying on dead ones.
-          for (let i = 0; i < 4; i++) {
-            if (!isAlive()) {
-              await client.close()
-              throw new Error('aborted')
-            }
-            try {
-              const info = await client.status(1200)
-              return client
-            } catch (_) { }
-          }
-        } catch (e) {
-          if (e.message === 'aborted') throw e
-        }
-        await client.close()
-        // This port opened but never answered STATUS -> it's a dead/stale grant
-        // left over from an earlier USB re-enumeration. Chrome keeps every such
-        // grant per-origin, so over time getPorts() accumulates many corpses and
-        // openAuthorizedPort can commit to one (opens fine, no bytes ever flow:
-        // no bangs, no STATUS reply). Forget it so the list converges on the one
-        // live port. Guard on >1 so a healthy sole port is never stranded.
+      const ports = await navigator.serial.getPorts()
+      const ordered = (justConnected && ports.includes(justConnected))
+        ? [justConnected, ...ports.filter(p => p !== justConnected)]
+        : ports
+      for (const port of ordered) {
+        const client = await connectSyncClient(port, callbacks, isAlive)
+        if (client) return client
         if ((await navigator.serial.getPorts()).length > 1) {
           onLog('dropping stale serial port')
           try { await port.forget?.() } catch (_) { }
@@ -557,7 +588,7 @@ export async function waitForAuthorizedPort(timeoutMs = 60000, callbacks = {}) {
       ])
       wake = null
     }
-    throw new Error(`CDC port not ready within ${timeoutMs / 1000}s — pick the port again`)
+    throw new Error(`serial port not ready within ${timeoutMs / 1000}s — pick the port again`)
   } finally {
     if (typeof navigator !== 'undefined' && navigator.serial?.removeEventListener) {
       navigator.serial.removeEventListener('connect', onConnect)
@@ -615,8 +646,9 @@ export async function prepareForSync(client, callbacks) {
 export async function connectAndPrepare(requestPort, callbacks) {
   const port = await requestPort()
   if (!port) throw new Error('no serial port')
-  let client = new EspdSyncClient(port, callbacks)
-  await client.open()
+  const isAlive = callbacks?.isAlive || (() => true)
+  let client = await connectSyncClient(port, callbacks, isAlive)
+  if (!client) throw new Error('device did not answer STATUS (wrong port or baud?)')
   client = await prepareForSync(client, callbacks)
   return client
 }

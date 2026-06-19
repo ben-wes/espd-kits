@@ -14,6 +14,8 @@ import {
   syncStorePath,
   waitForAuthorizedPort,
   serialLinkLabel,
+  connectSyncClient,
+  prepareMonitorPort,
 } from './sync.js?v=__BUILD__'
 
 const REPO = 'ben-wes/espd-kits'
@@ -186,9 +188,19 @@ function kickMonitorMaintainer() {
         // 'connect' event after a RESET re-enumerates), open it fresh. No
         // byte-probe, so a booted-but-quiet device still reconnects.
         let port = null
-        try {
-          port = await openAuthorizedPort(2500, alive, monPick)
-        } catch (_) {}
+        const ports = await navigator.serial.getPorts()
+        const ordered = (monPick && ports.includes(monPick))
+          ? [monPick, ...ports.filter(p => p !== monPick)]
+          : ports
+        for (const candidate of ordered) {
+          if (await prepareMonitorPort(candidate, alive)) {
+            port = candidate
+            break
+          }
+          if ((await navigator.serial.getPorts()).length > 1) {
+            try { await candidate.forget?.() } catch (_) {}
+          }
+        }
         if (!port || !alive()) {
           if (port) { try { await port.close() } catch (_) {} }
           if (alive() && !announcedWait) {
@@ -478,8 +490,8 @@ async function startPatchSync() {
       syncClient = await waitForAuthorizedPort(20000, cb)
       syncClient = await prepareForSync(syncClient, cb)
     } else if (pickedPort) {
-      syncClient = new EspdSyncClient(pickedPort, cb)
-      await syncClient.open()
+      syncClient = await connectSyncClient(pickedPort, cb, cb.isAlive)
+      if (!syncClient) throw new Error('device did not answer STATUS (wrong port or baud?)')
       syncClient = await prepareForSync(syncClient, cb)
     } else {
       syncClient = await connectAndPrepare(
@@ -563,8 +575,14 @@ async function loadBoardsForRelease(tag) {
   }
   const manifest = await loadReleaseManifest(tag)
   boards = manifest?.boards || []
-  if (boards.length === 1) selectedBoardId = boards[0].id
+  if (boards.length === 1) selectBoard(boards[0].id)
+  else renderBoards()
+}
+
+function selectBoard(boardId) {
+  selectedBoardId = boardId
   renderBoards()
+  render()
 }
 
 function renderBoards() {
@@ -608,11 +626,7 @@ function renderBoards() {
     btn.innerHTML =
       `<p class="text-sm font-bold">${b.name}</p>` +
       `<p class="mt-1 text-xs ${selected ? 'text-neutral-300' : 'text-neutral-500'}">${b.chip || b.target}${b.description ? ' · ' + b.description : ''}</p>`
-    btn.addEventListener('click', () => {
-      selectedBoardId = b.id
-      renderBoards()
-      render()
-    })
+    btn.addEventListener('click', () => selectBoard(b.id))
     grid.appendChild(btn)
   }
 }
