@@ -15,7 +15,7 @@ bsp:
   component: esp32_p4_nano
   git: https://github.com/ben-wes/esp-bsp.git
   path: bsp/esp32_p4_nano
-  version: espd-bsp-p4fix
+  version: espd-bsp
 
 features:
   imply:
