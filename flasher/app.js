@@ -444,6 +444,17 @@ async function releaseMonitorPort() {
   updateMonitorToolbar()
 }
 
+async function releaseSerialForFlash() {
+  if (syncClient || syncWanted) {
+    await stopSync(false, true)
+  }
+  if (monWanted || monPort || monConnecting) {
+    monConnecting = false
+    await releaseMonitorPort()
+  }
+  updateMonitorToolbar()
+}
+
 function openSyncLog() {
   syncLogOpen = true
   updateMonitorToolbar()
@@ -839,6 +850,12 @@ function renderProgress(phase, msg, pct) {
   if (lt) lt.addEventListener('click', () => { showLog = !showLog; renderProgress(phase, msg, pct) })
 }
 
+async function detectFlashSizeLabel(esp) {
+  const kb = await esp.getFlashSize()
+  if (!kb) throw new Error('Could not detect flash size')
+  return `${kb / 1024}MB`
+}
+
 async function loadReleaseImages(tag, boardId, log) {
   const manifest = await loadReleaseManifest(tag)
   const specs = filesForBoardRelease(manifest, boardId, tag)
@@ -869,6 +886,11 @@ $('flash-btn').addEventListener('click', async () => {
   renderProgress('connecting', 'Connecting…', null)
   log('Connecting…')
   try {
+    if (monPort || monWanted || syncClient || syncWanted || monConnecting) {
+      renderProgress('connecting', 'Disconnecting serial…', null)
+      log('Disconnecting serial monitor…')
+      await releaseSerialForFlash()
+    }
     const port = await navigator.serial.requestPort()
     const transport = new Transport(port)
     const esp = new ESPLoader({ transport, baudrate: 115200, romBaudrate: 115200, enableTracing: false })
@@ -876,6 +898,9 @@ $('flash-btn').addEventListener('click', async () => {
     renderProgress('initializing', 'Initializing…', null)
     await esp.main()
     log('Chip: ' + esp.chip.CHIP_NAME)
+
+    const flashSizeLabel = await detectFlashSizeLabel(esp)
+    log('Flash size: ' + flashSizeLabel)
 
     renderProgress('preparing', 'Loading firmware…', null)
     let fileArray, totalSize
@@ -908,7 +933,7 @@ $('flash-btn').addEventListener('click', async () => {
     let totalWritten = 0
     await esp.writeFlash({
       fileArray,
-      flashSize: 'keep', flashMode: 'keep', flashFreq: 'keep',
+      flashSize: flashSizeLabel, flashMode: 'keep', flashFreq: 'keep',
       eraseAll: false, compress: true,
       reportProgress(fileIndex, written, total) {
         const uncomp = (written / total) * fileArray[fileIndex].data.length

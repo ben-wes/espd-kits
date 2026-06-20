@@ -3,7 +3,8 @@ name: Waveshare ESP32-S3-AUDIO
 target: esp32s3
 help: |
   Waveshare AI Smart Speaker / ESP32-S3-AUDIO Board (ES8311 DAC,
-  ES7210 mic). Fetches esp-bsp via Component Manager.
+  ES7210 mic). USB Serial JTAG console and serial dev sync (no OTG / USB MIDI).
+  For TinyUSB CDC + USB MIDI, use waveshare_s3_midi.
 
 bsp:
   component: waveshare_esp32_s3_audio

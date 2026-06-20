@@ -1,15 +1,10 @@
-# ESPD board definition — source of truth for components/espd_board_waveshare_p4_nano/
-# Regenerated on every CMake configure (scripts/gen_board_plugins.py).
-
-id: waveshare_p4_nano
-name: Waveshare ESP32-P4-NANO
+id: waveshare_p4_nano_midi
+name: Waveshare ESP32-P4-NANO (USB MIDI)
 target: esp32p4
 help: |
-  Waveshare ESP32-P4-NANO (ES8311 codec, microSD). Onboard ESP32-C6-MINI provides
-  Wi-Fi 6 / BLE over SDIO (ESP-Hosted). STA uses wifi_ssid= in config.txt (same
-  as S3). BSP from ben-wes/esp-bsp (IDF 6); hosted Wi-Fi deps in esp32_p4_nano BSP.
-  Type-C is CH343 USB-UART — dev sync uses UART0 serial sync (no OTG / USB MIDI).
-  For TinyUSB OTG CDC + USB MIDI, use waveshare_p4_nano_midi.
+  Waveshare ESP32-P4-NANO with TinyUSB OTG: CDC serial console, dev sync over
+  CDC, USB mass storage, and USB MIDI (device/host via config.txt usb_midi_role).
+  Same hardware as waveshare_p4_nano; use that board for CH343 UART + serial sync.
 
 bsp:
   component: esp32_p4_nano
@@ -24,22 +19,23 @@ features:
     - ESPD_USE_AIN
     - ESPD_USE_AOUT
     - ESPD_USE_WIFI
+    - ESPD_USE_USB_OTG
 
 profile:
-  console:
-    USJ_ENABLE_USB_SERIAL_JTAG: n
-    ESP_CONSOLE_UART_CUSTOM: y
-    ESP_CONSOLE_UART: y
-    ESP_CONSOLE_UART_NUM: 0
-    ESP_CONSOLE_UART_TX_GPIO: 37
-    ESP_CONSOLE_UART_RX_GPIO: 38
-    ESP_CONSOLE_UART_BAUDRATE: 921600
-    ESP_CONSOLE_SECONDARY_NONE: y
-    ESPTOOLPY_MONITOR_BAUD: 921600
-  ESPD features:
-    ESPD_USE_USB_OTG: n
+  USB OTG + MIDI:
+    ESPD_USE_USB_OTG: y
+    ESPD_USE_USB_MSC: y
+    ESPD_USE_USB_MIDI: y
+    ESPD_USE_USB_MIDI_HOST: y
+    TINYUSB_MSC_ENABLED: y
+    TINYUSB_CDC_ENABLED: y
+    TINYUSB_MIDI_COUNT: 1
+    TINYUSB_MSC_BUFSIZE: 8192
+    WL_SECTOR_SIZE_4096: y
     ESPD_DEV_SYNC: y
-    ESPD_DEV_SERIAL_SYNC: y
+    ESPD_DEV_CDC_SYNC: y
+    ESP_CONSOLE_NONE: y
+    USJ_ENABLE_USB_SERIAL_JTAG: n
   Board hardware:
     BSP_CONFIG_NO_GRAPHIC_LIB: 1
     ESPTOOLPY_FLASHSIZE_16MB: y
@@ -82,15 +78,6 @@ profile:
     CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6: y
     CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD: y
     CONFIG_ESP_HOSTED_SDIO_OPTIMIZATION_RX_STREAMING_MODE: y
-    # VDD_SDMMC (on-chip LDO ch 4) is the shared SDMMC I/O rail for both the uSD
-    # slot and the C6 SDIO. The BSP acquires that LDO when it mounts the uSD
-    # (espd_storage_mount_sdcard, which runs before wifi_prepare_phy brings up the
-    # hosted SDIO transport), so esp_hosted must NOT acquire ch 4 a second time —
-    # the duplicate on-chip-LDO creation fails with "channel already in use" (see
-    # the ldo/sd_ldo/sdio_wrapper errors). Leave esp_hosted's internal LDO off and
-    # let it use the already-powered rail. This is only safe because we defer
-    # esp_hosted_init() out of the constructor to app_main (wifi_ensure_hosted in
-    # wifi/wifi.c); at constructor time the rail was not yet up.
     CONFIG_ESP_HOSTED_SD_PWR_CTRL_LDO_INTERNAL_IO: n
   Pd runtime tuning:
     ESP_MAIN_TASK_AFFINITY_CPU1: y
