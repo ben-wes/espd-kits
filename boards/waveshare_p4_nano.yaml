@@ -9,7 +9,7 @@ help: |
   Wi-Fi 6 / BLE over SDIO (ESP-Hosted). STA uses wifi_ssid= in config.txt (same
   as S3). BSP from ben-wes/esp-bsp (IDF 6); hosted Wi-Fi deps in esp32_p4_nano BSP.
   Type-C is CH343 USB-UART — dev sync uses UART0 serial sync (no OTG / USB MIDI).
-  For TinyUSB OTG CDC + USB MIDI, use waveshare_p4_nano_midi.
+  For TinyUSB OTG CDC + USB MIDI, use waveshare_p4_nano_midi (Type-A OTG; Type-C stays CH343 UART).
 
 bsp:
   component: esp32_p4_nano
@@ -77,6 +77,7 @@ profile:
     CONFIG_LV_CONF_SKIP: y
     FATFS_SECTOR_512: y
     FATFS_LFN_HEAP: y
+    WL_SECTOR_SIZE_512: y
   ESP-Hosted (C6 SDIO):
     CONFIG_SLAVE_IDF_TARGET_ESP32C6: y
     CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6: y
