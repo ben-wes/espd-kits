@@ -83,15 +83,11 @@ profile:
     CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6: y
     CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD: y
     CONFIG_ESP_HOSTED_SDIO_OPTIMIZATION_RX_STREAMING_MODE: y
-    # VDD_SDMMC (on-chip LDO ch 4) is the shared SDMMC I/O rail for both the uSD
-    # slot and the C6 SDIO. The BSP acquires that LDO when it mounts the uSD
-    # (espd_storage_mount_sdcard, which runs before wifi_prepare_phy brings up the
-    # hosted SDIO transport), so esp_hosted must NOT acquire ch 4 a second time —
-    # the duplicate on-chip-LDO creation fails with "channel already in use" (see
-    # the ldo/sd_ldo/sdio_wrapper errors). Leave esp_hosted's internal LDO off and
-    # let it use the already-powered rail. This is only safe because we defer
-    # esp_hosted_init() out of the constructor to app_main (wifi_ensure_hosted in
-    # wifi/wifi.c); at constructor time the rail was not yet up.
+    # VDD_SDMMC (on-chip LDO ch 4) is shared by the uSD slot and C6 SDIO.
+    # esp_hosted must not acquire that LDO itself (CONFIG_ESP_HOSTED_SD_PWR_CTRL_
+    # LDO_INTERNAL_IO=n). Boot order in espd.c: wifi_ensure_hosted() powers the
+    # rail and brings up SDIO, then espd_storage_mount_sdcard() adopts the same
+    # handle via bsp_sdcard_adopt_pwr_ctrl_handle (esp-bsp esp32_p4_nano).
     CONFIG_ESP_HOSTED_SD_PWR_CTRL_LDO_INTERNAL_IO: n
   Pd runtime tuning:
     ESP_MAIN_TASK_AFFINITY_CPU1: y
