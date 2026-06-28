@@ -1150,14 +1150,14 @@ function classifyLogLine(text, source) {
 
 const LOG_LINE_CLASS = {
   'script': 'text-neutral-400',
-  'dev-tx': 'text-cyan-600',
+  'dev-tx': 'text-blue-700',
   'dev-ok': 'text-green-600',
   'dev-err': 'text-red-600',
-  'espd': 'font-semibold text-cyan-600',
+  'espd': 'font-semibold text-blue-700',
   'pd': 'text-neutral-700',
-  'esp-i': 'text-neutral-500',
-  'esp-d': 'text-neutral-500',
-  'esp-v': 'text-neutral-500',
+  'esp-i': 'text-neutral-600',
+  'esp-d': 'text-neutral-600',
+  'esp-v': 'text-neutral-600',
   'esp-w': 'text-yellow-600',
   'esp-e': 'text-red-600',
 }
