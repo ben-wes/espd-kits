@@ -2,12 +2,13 @@ id: waveshare_s3_midi
 name: Waveshare ESP32-S3-AUDIO (USB MIDI)
 target: esp32s3
 help: |
-  Waveshare ESP32-S3-AUDIO with TinyUSB OTG: CDC serial, dev sync, USB mass
-  storage, and USB MIDI (usb_midi_role in config.txt).
+  Waveshare ESP32-S3-AUDIO with TinyUSB OTG: CDC serial, dev sync (espd_sync),
+  and USB MIDI (usb_midi_role in config.txt).
   CDC port (macOS): cu.usbmodem0000000000011 when usb_midi_role=device (default
   for MIDI); cu.usbmodem1234561 when usb_midi_role=off (auto descriptor only).
   Do not use cu.usbmodem*101 — that is USB Serial JTAG, disabled on this board.
-  For USB Serial JTAG dev sync (no OTG/MIDI), use waveshare_s3.
+  Web flasher: hold BOOT, tap RESET, release BOOT when the browser asks for the
+  USB port (download mode). Skip "erase flash" unless recovering corrupt storage.
 
 bsp:
   component: waveshare_esp32_s3_audio
@@ -30,10 +31,9 @@ io:
 profile:
   USB OTG + MIDI:
     ESPD_USE_USB_OTG: y
-    ESPD_USE_USB_MSC: y
+    ESPD_USE_USB_MSC: n
     ESPD_USE_USB_MIDI: y
     ESPD_USE_USB_MIDI_HOST: n
-    TINYUSB_MSC_ENABLED: y
     TINYUSB_CDC_ENABLED: y
     TINYUSB_MIDI_COUNT: 1
     ESPD_DEV_SYNC: y

@@ -2,9 +2,9 @@ id: waveshare_p4_nano_midi
 name: Waveshare ESP32-P4-NANO (USB MIDI)
 target: esp32p4
 help: |
-  Waveshare ESP32-P4-NANO: Type-A OTG for USB mass storage and USB MIDI
-  (device or host via config.txt usb_midi_role). Type-C (CH343) is UART only —
-  flash, monitor, dev sync (cu.usbmodem* at 921600).
+  Waveshare ESP32-P4-NANO: Type-A OTG for USB MIDI (device or host via
+  config.txt usb_midi_role). Type-C (CH343) is UART only — flash, monitor,
+  dev sync (cu.usbmodem* at 921600).
 
   Power: Type-C or 5 V header (Type-A does not power the board).
 
@@ -17,7 +17,7 @@ help: |
   C6 WiFi). esp_tinyusb PR #399 adds software detach on that GPIO — it does not
   replace the divider. Set ESPD_USB_VBUS_MONITOR_GPIO after a hardware mod.
 
-  usb_midi_role omitted: CDC+MSC only (no MIDI).
+  usb_midi_role omitted: CDC only on Type-A (no MIDI).
 
 bsp:
   component: esp32_p4_nano
@@ -47,13 +47,11 @@ profile:
     ESPTOOLPY_MONITOR_BAUD: 921600
   USB OTG + MIDI:
     ESPD_USE_USB_OTG: y
-    ESPD_USE_USB_MSC: y
+    ESPD_USE_USB_MSC: n
     ESPD_USE_USB_MIDI: y
     ESPD_USE_USB_MIDI_HOST: y
     TINYUSB_CDC_ENABLED: y
-    TINYUSB_MSC_ENABLED: y
     TINYUSB_MIDI_COUNT: 1
-    TINYUSB_MSC_BUFSIZE: 8192
     ESPD_DEV_SYNC: y
     ESPD_DEV_SERIAL_SYNC: y
     ESPD_USB_CONSOLE_CDC: n
