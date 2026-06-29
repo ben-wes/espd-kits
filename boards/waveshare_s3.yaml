@@ -2,9 +2,11 @@ id: waveshare_s3
 name: Waveshare ESP32-S3-AUDIO
 target: esp32s3
 help: |
-  Waveshare AI Smart Speaker / ESP32-S3-AUDIO Board (ES8311 DAC,
-  ES7210 mic). USB Serial JTAG console and serial dev sync (no OTG / USB MIDI).
-  For TinyUSB CDC + USB MIDI, use waveshare_s3_midi.
+  Waveshare ESP32-S3-AUDIO (ES8311 codec, ES7210 mic): TinyUSB OTG CDC for
+  serial monitor and dev sync (espd_sync). No USB MIDI — use waveshare_s3_midi
+  for USB MIDI.
+  CDC port (macOS): cu.usbmodem0000000000011 — not cu.usbmodem*101 (USB Serial
+  JTAG is disabled on this profile).
 
 bsp:
   component: waveshare_esp32_s3_audio
@@ -19,6 +21,7 @@ features:
     - ESPD_USE_AIN
     - ESPD_USE_AOUT
     - ESPD_USE_WIFI
+    - ESPD_USE_USB_OTG
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
