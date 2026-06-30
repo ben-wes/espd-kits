@@ -37,7 +37,10 @@ def discover_boards(root: Path) -> list[dict]:
     for path in sorted(boards_dir.glob("*.yaml")):
         if path.name == "index.yaml":
             continue
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError as exc:
+            raise SystemExit(f"{path}: invalid YAML: {exc}") from exc
         if not isinstance(data, dict):
             raise SystemExit(f"{path}: expected mapping at top level")
         board_id = data.get("id") or path.stem
@@ -66,28 +69,31 @@ def chip_label(target: str) -> str:
     return target.upper()
 
 
-def board_description(data: dict) -> str:
-    help_text = data.get("help") or ""
-    if isinstance(help_text, str):
-        line = help_text.strip().split("\n")[0].strip()
-        if " (" in line:
-            line = line.split(" (")[0].strip()
-        return line
-    return ""
+def _flasher_cfg(data: dict) -> dict:
+    flasher = data.get("flasher") or {}
+    return flasher if isinstance(flasher, dict) else {}
 
 
 def release_board_entry(board: dict) -> dict:
     data = board["data"]
-    entry = {
-        "id": board["id"],
-        "name": board["name"],
+    board_id = board["id"]
+    flasher = _flasher_cfg(data)
+    title = str(flasher.get("title") or "").strip()
+    if not title:
+        raise ValueError(f"boards/{board_id}.yaml: flasher.title is required")
+
+    entry: dict = {
+        "id": board_id,
         "target": board["target"],
         "chip": chip_label(board["target"]),
-        "description": board_description(data),
+        "title": title,
     }
-    flasher = data.get("flasher") or {}
-    if isinstance(flasher, dict) and flasher.get("image"):
-        entry["image"] = flasher["image"]
+    note = str(flasher.get("note") or "").strip()
+    if note:
+        entry["note"] = note
+    image = flasher.get("image")
+    if image:
+        entry["image"] = image
     return entry
 
 

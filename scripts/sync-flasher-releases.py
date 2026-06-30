@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import sys
 import urllib.error
@@ -13,6 +14,7 @@ from pathlib import Path
 
 REPO = "ben-wes/espd-kits"
 UA = "espd-kits-flasher-sync"
+DEFAULT_MAX_RELEASES = 8
 
 
 def _manifest_helpers():
@@ -39,7 +41,10 @@ def api_json(url: str, token: str | None = None) -> object:
 
 
 def download(url: str, dest: Path, token: str | None = None) -> None:
-    headers = {"User-Agent": UA}
+    headers = {
+        "User-Agent": UA,
+        "Accept": "application/octet-stream",
+    }
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)
@@ -84,7 +89,22 @@ def fallback_board_entry(bid: str, tag: str, kit_boards: dict, manifest_mod) -> 
     return entry
 
 
-def sync_flasher_releases(root: Path, token: str | None = None) -> int:
+def refresh_board_metadata(manifest: dict, kit_boards: dict, manifest_mod) -> None:
+    """Apply current boards/*.yaml flasher fields; keep mirrored file URLs."""
+    for board in manifest.get("boards") or []:
+        bid = board.get("id")
+        if bid not in kit_boards:
+            continue
+        files = board.get("files")
+        board.clear()
+        board.update(manifest_mod.release_board_entry(kit_boards[bid]))
+        if files:
+            board["files"] = files
+
+
+def sync_flasher_releases(
+    root: Path, token: str | None = None, max_releases: int = DEFAULT_MAX_RELEASES
+) -> int:
     manifest_mod = _manifest_helpers()
     kit_boards = manifest_mod.boards_by_id(root)
 
@@ -100,6 +120,8 @@ def sync_flasher_releases(root: Path, token: str | None = None) -> int:
         return 1
 
     stable = [r for r in releases if not r.get("draft") and not r.get("prerelease")]
+    if max_releases > 0:
+        stable = stable[:max_releases]
     if not stable:
         print("no stable releases to mirror")
         return 0
@@ -136,22 +158,34 @@ def sync_flasher_releases(root: Path, token: str | None = None) -> int:
             }
 
         rewrite_manifest_urls(manifest, tag, firmware_dir, token)
+        refresh_board_metadata(manifest, kit_boards, manifest_mod)
         out_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         synced += 1
 
-    print(f"mirrored {synced} release(s) into {flasher.relative_to(root)}/")
+    print(
+        f"mirrored {synced} release(s) (max {max_releases}) into {flasher.relative_to(root)}/"
+    )
     return 0
 
 
 def main() -> int:
-    import os
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--max-releases",
+        type=int,
+        default=int(os.environ.get("MAX_RELEASES", DEFAULT_MAX_RELEASES)),
+        help=f"newest stable releases to mirror (default {DEFAULT_MAX_RELEASES}, 0 = all)",
+    )
+    args = ap.parse_args()
 
     root = Path(__file__).resolve().parents[1]
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     try:
-        return sync_flasher_releases(root, token)
+        return sync_flasher_releases(root, token, max_releases=args.max_releases)
     except urllib.error.HTTPError as exc:
-        print(f"HTTP {exc.code}: {exc.reason}", file=sys.stderr)
+        print(f"HTTP {exc.code}: {exc.reason} ({exc.url})", file=sys.stderr)
         return 1
 
 

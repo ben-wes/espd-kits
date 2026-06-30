@@ -28,3 +28,8 @@ profile:
   storage:
     # SD cards use 512-byte sectors; chip-wide FATFS 4096 breaks SD mount.
     FATFS_SECTOR_512: y
+
+flasher:
+  title: Korvo-2
+  note: mic array, LCD
+  image: assets/boards/korvo2.jpg

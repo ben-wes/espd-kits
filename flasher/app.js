@@ -1,4 +1,4 @@
-import { ESPLoader, Transport } from 'https://cdn.jsdelivr.net/npm/esptool-js@0.5.4/bundle.js'
+import { ESPLoader, Transport } from 'https://unpkg.com/esptool-js@0.6.0/bundle.js'
 import {
   EspdSyncClient,
   collectSyncFiles,
@@ -22,6 +22,7 @@ const REPO = 'ben-wes/espd-kits'
 
 let boards = []
 let selectedBoardId = null
+let latestTag = null
 let releaseManifests = new Map()
 let githubReleases = []
 let useLocal = false
@@ -591,55 +592,100 @@ async function loadBoardsForRelease(tag) {
 }
 
 function selectBoard(boardId) {
+  useLocal = false
+  localFile = null
+  $('local-file').value = ''
   selectedBoardId = boardId
   renderBoards()
   render()
 }
 
+function selectLocal() {
+  useLocal = true
+  selectedBoardId = null
+  renderBoards()
+  render()
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 function renderBoards() {
-  const grid = $('board-grid')
-  const hint = $('board-hint')
+  const list = $('board-list')
   const none = $('board-none')
-  grid.innerHTML = ''
-
-  if (useLocal) {
-    show(hint, false)
-    show(none, false)
-    return
-  }
-
-  const tag = $('release-select').value
-  if (!tag) {
-    show(hint, true)
-    show(none, false)
-    return
-  }
-  show(hint, false)
+  list.innerHTML = ''
 
   if (!boards.length) {
-    show(none, true)
-    none.textContent = releaseManifests.get(tag) === null
-      ? 'Release firmware not mirrored on this site yet — wait for Pages to redeploy after the release.'
-      : 'No boards in this release.'
-    return
+    show(none, !!latestTag && !useLocal)
+    if (latestTag) {
+      none.textContent = releaseManifests.get(latestTag) === null
+        ? 'Release firmware not mirrored on this site yet — wait for Pages to redeploy after the release.'
+        : 'No boards in the latest release.'
+    } else {
+      none.textContent = 'No releases yet — use a local .bin file below, or check GitHub releases.'
+    }
+  } else {
+    show(none, false)
   }
-  show(none, false)
 
   for (const b of boards) {
-    const selected = b.id === selectedBoardId
+    const selected = !useLocal && b.id === selectedBoardId
+    const note = (b.note || '').trim()
+    const muted = selected ? 'text-neutral-300' : 'text-neutral-500'
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.className =
-      'w-full border px-4 py-3 text-left transition ' +
+      'w-full px-4 py-3 text-left transition ' +
       (selected
-        ? 'border-black bg-black text-white'
-        : 'border-neutral-300 bg-white text-black hover:border-neutral-500')
+        ? 'bg-black text-white'
+        : 'bg-white text-black hover:bg-neutral-50')
+    const imgBorder = selected ? 'border-neutral-600' : 'border-neutral-200'
     btn.innerHTML =
-      `<p class="text-sm font-bold">${b.name}</p>` +
-      `<p class="mt-1 text-xs ${selected ? 'text-neutral-300' : 'text-neutral-500'}">${b.chip || b.target}${b.description ? ' · ' + b.description : ''}</p>`
+      `<div class="flex items-start gap-3">` +
+      (b.image
+        ? `<img src="${escapeHtml(b.image)}" alt="" class="h-14 w-14 shrink-0 border ${imgBorder} bg-white object-cover" loading="lazy" />`
+        : '') +
+      `<div class="min-w-0 flex-1">` +
+      `<div class="flex items-baseline justify-between gap-3">` +
+      `<p class="text-sm font-bold">${escapeHtml(b.title)}</p>` +
+      `<span class="shrink-0 text-xs ${muted}">${escapeHtml(b.chip)}</span>` +
+      `</div>` +
+      (note ? `<p class="mt-0.5 text-xs ${muted}">${escapeHtml(note)}</p>` : '') +
+      `</div>` +
+      `</div>`
     btn.addEventListener('click', () => selectBoard(b.id))
-    grid.appendChild(btn)
+    list.appendChild(btn)
   }
+
+  const localSelected = useLocal
+  const localBtn = document.createElement('button')
+  localBtn.type = 'button'
+  localBtn.className =
+    'w-full px-4 py-3 text-left transition ' +
+    (localSelected
+      ? 'bg-black text-white'
+      : 'bg-neutral-50 text-black hover:bg-neutral-100')
+  const localMuted = localSelected ? 'text-neutral-300' : 'text-neutral-500'
+  localBtn.innerHTML =
+    `<div class="flex items-start gap-3">` +
+    `<div class="flex h-14 w-14 shrink-0 items-center justify-center border ${localSelected ? 'border-neutral-600' : 'border-neutral-200'} bg-white">` +
+    `<svg class="h-6 w-6 ${localMuted}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="square" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/></svg>` +
+    `</div>` +
+    `<div class="min-w-0 flex-1">` +
+    `<p class="text-sm font-bold">Local firmware file</p>` +
+    `<p class="mt-0.5 text-xs ${localMuted}">Flash a .bin from your computer</p>` +
+    `</div>` +
+    `</div>`
+  localBtn.addEventListener('click', () => selectLocal())
+  list.appendChild(localBtn)
+
+  show($('board-local-panel'), useLocal)
+  show(list, true)
 }
 
 async function loadReleaseManifest(tag) {
@@ -673,18 +719,30 @@ function filesForBoardRelease(manifest, boardId, tag) {
   ]
 }
 
-async function fetchGithubReleases() {
-  show($('fw-loading'), true)
-  show($('fw-none'), false)
-  show($('release-select'), false)
+async function initBoards() {
+  show($('board-loading'), true)
+  show($('board-list'), false)
+  show($('board-none'), false)
+  show($('fw-version'), false)
+  latestTag = null
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`)
-    if (!res.ok) throw new Error('HTTP ' + res.status)
-    githubReleases = (await res.json()).filter(r => !r.draft)
+    if (res.ok) {
+      githubReleases = (await res.json()).filter(r => !r.draft)
+      const releases = stableReleases()
+      if (releases.length) {
+        latestTag = releases[0].tag_name
+        const ver = $('fw-version')
+        ver.textContent = `Firmware ${releases[0].name || latestTag}`
+        show(ver, true)
+        await loadBoardsForRelease(latestTag)
+      }
+    }
   } catch {
     githubReleases = []
   }
-  await renderFirmwareOptions()
+  show($('board-loading'), false)
+  renderBoards()
   render()
 }
 
@@ -692,54 +750,17 @@ function stableReleases() {
   return githubReleases.filter(r => !r.prerelease)
 }
 
-async function renderFirmwareOptions() {
-  show($('fw-loading'), false)
-  const releases = stableReleases()
-  if (!releases.length) {
-    show($('fw-none'), true)
-    show($('release-select'), false)
-    await loadBoardsForRelease('')
-    return
-  }
-  const sel = $('release-select')
-  show(sel, true)
-  show($('fw-none'), false)
-  const prev = sel.value
-  while (sel.children.length > 1) sel.removeChild(sel.lastChild)
-  for (const r of releases) {
-    const o = document.createElement('option')
-    o.value = r.tag_name
-    o.textContent = r.name || r.tag_name
-    sel.appendChild(o)
-  }
-  const latest = releases[0].tag_name
-  if (prev && releases.some(r => r.tag_name === prev)) sel.value = prev
-  else sel.value = latest
-  await loadBoardsForRelease(sel.value)
-}
-
 function fwReady() {
   if (useLocal) return !!localFile
-  const tag = $('release-select').value
-  return !!(tag && selectedBoardId)
+  return !!(latestTag && selectedBoardId)
 }
 
 function stepState(n) {
-  if (useLocal) {
-    if (n === 1) return localFile ? 'done' : 'active'
-    if (n === 2) return localFile ? 'done' : 'locked'
-    if (n === 3) return localFile ? 'active' : 'locked'
-    return 'locked'
-  }
   if (n === 1) {
-    if (!stableReleases().length) return 'locked'
-    return $('release-select').value ? 'done' : 'active'
-  }
-  if (n === 2) {
-    if (!$('release-select').value) return 'locked'
+    if (useLocal) return localFile ? 'done' : 'active'
     return selectedBoardId ? 'done' : 'active'
   }
-  if (n === 3) return fwReady() ? 'active' : 'locked'
+  if (n === 2) return fwReady() ? 'active' : 'locked'
   return 'locked'
 }
 
@@ -750,9 +771,7 @@ const badgeStates = {
   done: 'border-ocean-600 bg-ocean-600 text-white',
   locked: 'border-neutral-300 text-neutral-300',
 }
-const stepBaseMid = 'relative flex gap-5 pb-12'
 const stepBaseLast = 'relative flex gap-5 pb-0'
-const stepLockedMid = stepBaseMid + ' opacity-30 pointer-events-none select-none'
 const stepLockedLast = stepBaseLast + ' opacity-30 pointer-events-none select-none'
 
 function setBadge(el, state, num) {
@@ -761,13 +780,10 @@ function setBadge(el, state, num) {
 }
 
 function render() {
-  const s1 = stepState(1), s2 = stepState(2), s3 = stepState(3)
+  const s1 = stepState(1), s2 = stepState(2)
   setBadge($('badge1'), s1, 1)
   setBadge($('badge2'), s2, 2)
-  setBadge($('badge3'), s3, 3)
-  $('step2').className = s2 === 'locked' ? stepLockedMid : stepBaseMid
-  show($('step2'), !useLocal)
-  $('step3').className = s3 === 'locked' ? stepLockedLast : stepBaseLast
+  $('step2').className = s2 === 'locked' ? stepLockedLast : stepBaseLast
 
   const ready = fwReady()
   show($('flash-ready'), ready)
@@ -781,42 +797,12 @@ function render() {
     : ''
 }
 
-const tabOn = 'px-5 py-2.5 text-xs font-bold uppercase tracking-wider bg-black text-white'
-const tabOff = 'px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-500 hover:text-black'
-
-function setTab(local) {
-  useLocal = local
-  $('tab-release').className = local ? tabOff : tabOn
-  $('tab-local').className = local ? tabOn : tabOff
-  show($('fw-release-panel'), !local)
-  show($('fw-local-panel'), local)
-  if (local) {
-    selectedBoardId = null
-    boards = []
-  } else {
-    loadBoardsForRelease($('release-select').value).then(render)
-  }
-  renderBoards()
-  render()
-}
-
-$('tab-release').addEventListener('click', () => setTab(false))
-$('tab-local').addEventListener('click', () => setTab(true))
-$('release-select').addEventListener('change', async () => {
-  await loadBoardsForRelease($('release-select').value)
-  render()
-})
 $('erase-row').addEventListener('click', () => { eraseFirst = !eraseFirst; render() })
 $('local-file').addEventListener('change', e => { localFile = e.target.files?.[0] ?? null; render() })
 $('local-offset').addEventListener('input', e => { localOffset = e.target.value })
 
-function readAsBinaryString(blob) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader()
-    r.onload = () => resolve(r.result)
-    r.onerror = () => reject(new Error('FileReader error'))
-    r.readAsBinaryString(blob)
-  })
+async function readAsUint8Array(blob) {
+  return new Uint8Array(await blob.arrayBuffer())
 }
 
 const PHASE_LABELS = {
@@ -851,9 +837,9 @@ function renderProgress(phase, msg, pct) {
 }
 
 async function detectFlashSizeLabel(esp) {
-  const kb = await esp.getFlashSize()
-  if (!kb) throw new Error('Could not detect flash size')
-  return `${kb / 1024}MB`
+  const size = await esp.detectFlashSize()
+  if (!size) throw new Error('Could not detect flash size')
+  return size
 }
 
 async function loadReleaseImages(tag, boardId, log) {
@@ -865,7 +851,7 @@ async function loadReleaseImages(tag, boardId, log) {
     log('Loading ' + spec.url)
     const resp = await fetch(spec.url)
     if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + spec.name)
-    const data = await readAsBinaryString(await resp.blob())
+    const data = await readAsUint8Array(await resp.blob())
     fileArray.push({ data, address: spec.offset })
     totalSize += data.length
     log(spec.name + ' @ 0x' + spec.offset.toString(16) + ' (' + Math.round(data.length / 1024) + ' KB)')
@@ -893,7 +879,7 @@ $('flash-btn').addEventListener('click', async () => {
     }
     const port = await navigator.serial.requestPort()
     const transport = new Transport(port)
-    const esp = new ESPLoader({ transport, baudrate: 115200, romBaudrate: 115200, enableTracing: false })
+    const esp = new ESPLoader({ transport, baudrate: 115200, enableTracing: false })
 
     renderProgress('initializing', 'Initializing…', null)
     await esp.main()
@@ -906,14 +892,14 @@ $('flash-btn').addEventListener('click', async () => {
     let fileArray, totalSize
 
     if (useLocal && localFile) {
-      const data = await readAsBinaryString(localFile)
+      const data = await readAsUint8Array(localFile)
       const offset = parseInt(localOffset, 16) || 0
       fileArray = [{ data, address: offset }]
       totalSize = data.length
       log('Local file: ' + localFile.name + ' @ 0x' + offset.toString(16))
     } else {
-      const tag = $('release-select').value
-      if (!tag) throw new Error('No release selected')
+      const tag = latestTag
+      if (!tag) throw new Error('No release available')
       if (!selectedBoardId) throw new Error('No board selected')
       ;({ fileArray, totalSize } = await loadReleaseImages(tag, selectedBoardId, log))
     }
@@ -1109,14 +1095,6 @@ function navigatePdHistory(dir) {
     pdHistoryIdx++
     input.value = pdMsgHistory[pdHistoryIdx]
   }
-}
-
-function escapeHtml(s) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 const ANSI_RE = /\x1b\[[0-9;]*m/g
@@ -1343,7 +1321,6 @@ $('sync-now-btn').addEventListener('click', () => runSync('sync'))
 $('sync-stop-btn').addEventListener('click', () => stopSync())
 
 if (!('serial' in navigator)) show($('serial-warning'), true)
-if (location.protocol === 'file:') setTab(true)
 
 updateExpandLogButton(false)
 if ('serial' in navigator) {
@@ -1376,7 +1353,9 @@ function renderBuildInfo() {
     + `${BUILD_SHA.slice(0, 7)}</a>${date}`
 }
 
-fetchGithubReleases()
+initBoards().then(() => {
+  if (location.protocol === 'file:') selectLocal()
+})
 render()
 updateMonitorToolbar()
 renderBuildInfo()

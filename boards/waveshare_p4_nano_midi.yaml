@@ -113,3 +113,8 @@ profile:
     LWIP_UDP_RECVMBOX_SIZE: 32
     LWIP_TCPIP_RECVMBOX_SIZE: 32
     LWIP_TCP_SACK_OUT: y
+
+flasher:
+  title: Waveshare P4 Nano · MIDI
+  note: Type-A OTG
+  image: assets/boards/waveshare_p4_nano.jpg

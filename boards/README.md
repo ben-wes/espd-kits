@@ -8,6 +8,18 @@ Schema and authoring guide: **[espd/docs/ADDING_A_BOARD.md](../espd/docs/ADDING_
 
 `build-board.sh` and CI write **`CONFIG_ESPD_BOARD_<ID>=y`** to **`espd/sdkconfig.defaults.local`** from the YAML `id`.
 
+## Flasher copy (`flasher:`)
+
+| Field | Role |
+|-------|------|
+| `title` | **Required.** Short board label in the web flasher list |
+| `note` | Optional second line — only when the title alone isn't enough |
+| `image` | Board photo (`flasher/assets/boards/`, 400 px max edge) |
+
+`name` / `help` stay for menuconfig and docs; they are not exported to `manifest.json`.
+
+Board photos live in `flasher/assets/boards/` (Waveshare product pages; Korvo-2 retail photo; ESP32 module shot from Espressif esp-dev-kits).
+
 ## Adding a board
 
 1. Add `boards/<id>.yaml`

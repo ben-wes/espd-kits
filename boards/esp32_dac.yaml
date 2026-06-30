@@ -9,3 +9,8 @@ help: |
 profile:
   Audio:
     ESPD_AUDIO_BACKEND_DAC: y
+
+flasher:
+  title: ESP32 DAC
+  note: GPIO25/26
+  image: assets/boards/esp32_dac.jpg

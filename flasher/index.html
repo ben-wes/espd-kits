@@ -55,24 +55,12 @@
       <div class="relative flex gap-5 pb-12" id="step1">
         <div id="badge1" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-ocean-600 bg-white text-[11px] font-bold text-ocean-600">1</div>
         <div class="min-w-0 flex-1">
-          <h2 class="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Choose firmware</h2>
-          <div class="mb-4 inline-flex border border-neutral-300">
-            <button type="button" class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider bg-black text-white" id="tab-release">Release</button>
-            <button type="button" class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-500 hover:text-black" id="tab-local">Local file</button>
-          </div>
-
-          <div id="fw-release-panel">
-            <p id="fw-loading" class="text-sm text-neutral-400">Loading releases…</p>
-            <div id="fw-none" class="hidden border border-neutral-200 px-4 py-3 text-sm text-neutral-600">
-              No releases yet —
-              <a class="text-red-500 underline decoration-red-500/30 hover:decoration-red-500" href="https://github.com/ben-wes/espd-kits/releases" target="_blank" rel="noopener">GitHub releases ↗</a>
-            </div>
-            <select id="release-select" class="hidden w-full border border-neutral-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-black">
-              <option value="">Choose version…</option>
-            </select>
-          </div>
-
-          <div id="fw-local-panel" class="hidden space-y-4">
+          <h2 class="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Choose board</h2>
+          <p id="fw-version" class="mb-4 hidden text-xs text-neutral-400"></p>
+          <p id="board-loading" class="mb-4 text-sm text-neutral-400">Loading boards…</p>
+          <p id="board-none" class="hidden border border-neutral-200 px-4 py-3 text-sm text-neutral-600">No boards in the latest release.</p>
+          <div id="board-list" class="hidden flex flex-col border border-neutral-300 divide-y divide-neutral-300"></div>
+          <div id="board-local-panel" class="hidden mt-4 space-y-4 border border-neutral-300 bg-neutral-50 px-4 py-4">
             <div>
               <label class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-neutral-500" for="local-file">Firmware file (.bin)</label>
               <input type="file" id="local-file" accept=".bin" class="block w-full text-sm text-neutral-600 file:mr-3 file:border-0 file:bg-neutral-200 file:px-4 file:py-2 file:text-xs file:font-bold file:uppercase file:tracking-wider file:text-neutral-700 hover:file:bg-neutral-300" />
@@ -86,18 +74,8 @@
         </div>
       </div>
 
-      <div class="relative flex gap-5 pb-12 opacity-30 pointer-events-none select-none" id="step2">
+      <div class="relative flex gap-5 pb-0 opacity-30 pointer-events-none select-none" id="step2">
         <div id="badge2" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-neutral-300 bg-white text-[11px] font-bold text-neutral-300">2</div>
-        <div class="min-w-0 flex-1">
-          <h2 class="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Choose board</h2>
-          <p id="board-hint" class="mb-4 hidden text-sm text-neutral-400">Pick a release version first.</p>
-          <p id="board-none" class="hidden border border-neutral-200 px-4 py-3 text-sm text-neutral-600">No boards in this release.</p>
-          <div id="board-grid" class="grid gap-3 sm:grid-cols-2"></div>
-        </div>
-      </div>
-
-      <div class="relative flex gap-5 pb-0 opacity-30 pointer-events-none select-none" id="step3">
-        <div id="badge3" class="relative z-10 mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-neutral-300 bg-white text-[11px] font-bold text-neutral-300">3</div>
         <div class="min-w-0 flex-1">
           <h2 class="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-neutral-600">Flash</h2>
           <div class="flex flex-col gap-5">

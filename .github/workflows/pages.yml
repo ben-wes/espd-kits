@@ -26,6 +26,7 @@ jobs:
       - name: Mirror release firmware for flasher
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          MAX_RELEASES: 8
         run: python3 scripts/sync-flasher-releases.py
 
       - name: Stamp cache-busting build version

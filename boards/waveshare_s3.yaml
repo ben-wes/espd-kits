@@ -25,3 +25,8 @@ features:
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
+
+flasher:
+  title: Waveshare S3 Audio
+  note: OTG CDC sync
+  image: assets/boards/waveshare_s3.jpg

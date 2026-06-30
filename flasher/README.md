@@ -4,9 +4,9 @@ Deployed to **GitHub Pages** from this directory (see `.github/workflows/pages.y
 
 - **UI:** `index.html` — layout and copy
 - **Logic:** `app.js` — firmware list, Web Serial flash flow, monitor
-- **Loader:** [esptool-js](https://github.com/espressif/esptool-js) v0.5.4 via [jsDelivr](https://cdn.jsdelivr.net/npm/esptool-js@0.5.4/bundle.js) (not vendored in repo)
+- **Loader:** [esptool-js](https://github.com/espressif/esptool-js) v0.6.0 via [unpkg](https://unpkg.com/esptool-js@0.6.0/bundle.js) (not vendored in repo)
 - **Firmware:** GitHub Releases from [ben-wes/espd-kits](https://github.com/ben-wes/espd-kits/releases), built by CI
-- **Manifest:** `manifests/releases/{tag}.json` per release (mirrored on Pages deploy)
+- **Manifest:** `manifests/releases/{tag}.json` per release (mirrored on Pages deploy; newest 8 stable tags)
 
 Based on the [ESPD Web Flasher](https://flasher.michaelkramer.at/) reference UI (`original.html`).
 
