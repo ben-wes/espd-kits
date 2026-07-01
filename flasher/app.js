@@ -779,6 +779,19 @@ function setBadge(el, state, num) {
   el.innerHTML = state === 'done' ? TICK : String(num)
 }
 
+function updateSyncIntro() {
+  const el = $('sync-intro')
+  if (!el) return
+  if (selectedBoardId === 'waveshare_s3_ap') {
+    el.innerHTML =
+      'Join the device SoftAP, then open ' +
+      '<a class="underline hover:text-black" href="https://192.168.4.1/" target="_blank" rel="noopener">https://192.168.4.1</a> ' +
+      '(accept the self-signed warning once). USB serial (above) still works when cabled.'
+  } else {
+    el.textContent = 'Sync a local Pure Data project folder to the board over USB.'
+  }
+}
+
 function render() {
   const s1 = stepState(1), s2 = stepState(2)
   setBadge($('badge1'), s1, 1)
@@ -795,6 +808,7 @@ function render() {
   box.innerHTML = eraseFirst
     ? '<svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="square" stroke-linejoin="miter" d="M5 13l4 4L19 7"/></svg>'
     : ''
+  updateSyncIntro()
 }
 
 $('erase-row').addEventListener('click', () => { eraseFirst = !eraseFirst; render() })

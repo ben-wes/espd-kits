@@ -4,10 +4,11 @@ target: esp32s3
 help: |
   Waveshare ESP32-S3-AUDIO — SoftAP patch-sync dev profile (battery-friendly:
   no USB OTG, no USB MIDI). Same ES8311 / ES7210 / SD as waveshare_s3. Flash
-  and serial monitor over USB Serial JTAG when a cable is handy (macOS:
-  cu.usbmodem*101). Day-to-day patching: join the device SoftAP, open
-  http://192.168.4.1 (once AP sync is in firmware). STA still works via
-  config.txt wifi_ssid= for patches that use [netsend] / [netreceive].
+  over USB Serial JTAG when cabled. Day-to-day: join the device SoftAP and open
+  https://192.168.4.1 for monitor + live folder sync (accept the self-signed
+  warning once). Patch sync via espd_sync.py or USB Serial JTAG. STA still works via config.txt wifi_ssid=
+  for patches that
+  use [netsend] / [netreceive].
 
 bsp:
   component: waveshare_esp32_s3_audio
@@ -29,6 +30,15 @@ io:
 profile:
   SoftAP sync dev:
     ESPD_ENABLE_LEGACY_WIFI_TRANSPORT: n
+    ESPD_DEV_SYNC: y
+    ESPD_DEV_SERIAL_SYNC: y
+    ESPD_WIFI_AP_SYNC: y
+    MBEDTLS_TLS_SERVER_AND_CLIENT: y
+    MBEDTLS_SSL_KEEP_PEER_CERTIFICATE: y
+    MBEDTLS_DYNAMIC_BUFFER: y
+    MBEDTLS_DYNAMIC_FREE_CONFIG_DATA: y
+    ESP_TLS_USE_DS_PERIPHERAL: n
+    SPIRAM_MALLOC_RESERVE_INTERNAL: 131072
 
 flasher:
   image: assets/boards/waveshare_s3.jpg

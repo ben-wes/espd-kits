@@ -70,6 +70,18 @@ python3 scripts/generate-manifest.py --version v0.1.0 \
 
 See [espd/docs/DEV_SYNC.md](../espd/docs/DEV_SYNC.md) for protocol and storage rules.
 
+## SoftAP device console
+
+Boards with `ESPD_WIFI_AP_SYNC` (e.g. `waveshare_s3_ap`) serve a web UI after you join the SoftAP:
+
+- **https://192.168.4.1/** — monitor, patch sync, live folder watch (self-signed cert; accept browser warning once)
+
+- Static UI embedded in firmware (`espd/main/device_console/`)
+- **WebSocket `/ws`** — same line protocol as USB/TCP (monitor log + patch sync)
+- **TCP :4499** — still available for [`espd_sync.py`](../espd/scripts/espd_sync.py)
+
+The GitHub Pages flasher cannot talk to the device over Wi‑Fi (browser security); use the on-device console or the Python script instead.
+
 ## Adding a board
 
 1. Add `boards/<id>.yaml`
