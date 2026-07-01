@@ -35,7 +35,7 @@ Example:
       "target": "esp32s3",
       "chip": "ESP32-S3",
       "title": "Waveshare S3 Audio",
-      "note": "OTG CDC sync",
+      "note": "USB Serial JTAG sync",
       "files": {
         "bootloader": { "url": "…/waveshare_s3-bootloader.bin", "offset": 0 },
         "partition_table": { "url": "…/waveshare_s3-partition-table.bin", "offset": 32768 },

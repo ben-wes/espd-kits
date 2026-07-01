@@ -3,7 +3,8 @@ name: Waveshare ESP32-S3-AUDIO (USB MIDI)
 target: esp32s3
 help: |
   Waveshare ESP32-S3-AUDIO with TinyUSB OTG: CDC serial, dev sync (espd_sync),
-  and USB MIDI (usb_midi_role in config.txt).
+  and USB MIDI (usb_midi_role in config.txt). Requires OTG — plain waveshare_s3
+  uses USB Serial JTAG instead (one port, no MIDI).
   CDC port (macOS): cu.usbmodem0000000000011 when usb_midi_role=device (default
   for MIDI); cu.usbmodem1234561 when usb_midi_role=off (auto descriptor only).
   Do not use cu.usbmodem*101 — that is USB Serial JTAG, disabled on this board.

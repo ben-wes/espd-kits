@@ -3,8 +3,8 @@ name: Waveshare ESP32-S3-AUDIO (SoftAP sync)
 target: esp32s3
 help: |
   Waveshare ESP32-S3-AUDIO — SoftAP patch-sync dev profile (battery-friendly:
-  no USB OTG, no USB MIDI). Same ES8311 / ES7210 / SD as waveshare_s3. Flash
-  over USB Serial JTAG when cabled. Day-to-day: join the device SoftAP and open
+  no USB OTG, no USB MIDI). Same ES8311 / ES7210 / SD as waveshare_s3, plus
+  wireless console. Flash over USB Serial JTAG when cabled. Day-to-day: join the device SoftAP and open
   https://192.168.4.1 for monitor + live folder sync (accept the self-signed
   warning once). Patch sync via espd_sync.py or USB Serial JTAG. STA still works via config.txt wifi_ssid=
   for patches that

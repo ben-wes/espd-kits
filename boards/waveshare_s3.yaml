@@ -2,11 +2,11 @@ id: waveshare_s3
 name: Waveshare ESP32-S3-AUDIO
 target: esp32s3
 help: |
-  Waveshare ESP32-S3-AUDIO (ES8311 codec, ES7210 mic): TinyUSB OTG CDC for
-  serial monitor and dev sync (espd_sync). No USB MIDI — use waveshare_s3_midi
-  for USB MIDI.
-  CDC port (macOS): cu.usbmodem0000000000011 — not cu.usbmodem*101 (USB Serial
-  JTAG is disabled on this profile).
+  Waveshare ESP32-S3-AUDIO (ES8311 codec, ES7210 mic): USB Serial JTAG for
+  flash, serial monitor, and dev sync (espd_sync) — one cable, one port. No
+  TinyUSB OTG (use waveshare_s3_midi for USB MIDI; waveshare_s3_ap for
+  wireless SoftAP sync).
+  macOS: cu.usbmodem*101 — idf.py monitor and espd_sync.py use the same port.
 
 bsp:
   component: waveshare_esp32_s3_audio
@@ -21,12 +21,16 @@ features:
     - ESPD_USE_AIN
     - ESPD_USE_AOUT
     - ESPD_USE_WIFI
-    - ESPD_USE_USB_OTG
+
+profile:
+  Dev sync:
+    ESPD_DEV_SYNC: y
+    ESPD_DEV_SERIAL_SYNC: y
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
 
 flasher:
   title: Waveshare S3 Audio
-  note: OTG CDC sync
+  note: USB Serial JTAG sync
   image: assets/boards/waveshare_s3.jpg
