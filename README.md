@@ -19,7 +19,7 @@ Upstream firmware and Pd core live in the **`espd/`** git submodule. This repo o
 ```bash
 git clone --recursive https://github.com/ben-wes/espd-kits.git
 cd espd-kits
-. $HOME/.espressif/v6.0.1/esp-idf/export.sh   # ESP-IDF v6.0.1
+. $HOME/.espressif/v6.0.2/esp-idf/export.sh   # ESP-IDF v6.0.2
 
 ./scripts/build-board.sh waveshare_s3
 # artifacts in dist/waveshare_s3/
@@ -32,7 +32,7 @@ config (sample rate, WiFi, dev sync, extra GPIO, …) run menuconfig in the `esp
 submodule, starting from the kit baseline:
 
 ```bash
-. $HOME/.espressif/v6.0.1/esp-idf/export.sh
+. $HOME/.espressif/v6.0.2/esp-idf/export.sh
 export ESPD_BOARDS_DIR=$PWD/boards                       # kit boards discoverable
 python3 scripts/generate-manifest.py --select waveshare_s3 > espd/sdkconfig.defaults.local
 cd espd
