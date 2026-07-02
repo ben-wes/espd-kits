@@ -28,6 +28,8 @@ let githubReleases = []
 let useLocal = false
 let localFile = null
 let localOffset = '0x10000'
+let boardPickerOpen = false
+let boardFilter = ''
 let eraseFirst = false
 let flashing = false
 let flashLog = []
@@ -596,6 +598,7 @@ function selectBoard(boardId) {
   localFile = null
   $('local-file').value = ''
   selectedBoardId = boardId
+  closeBoardPicker()
   renderBoards()
   render()
 }
@@ -603,6 +606,7 @@ function selectBoard(boardId) {
 function selectLocal() {
   useLocal = true
   selectedBoardId = null
+  closeBoardPicker()
   renderBoards()
   render()
 }
@@ -615,13 +619,117 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;')
 }
 
+function boardHaystack(b) {
+  return [b.id, b.title, b.chip, b.note || ''].join(' ').toLowerCase()
+}
+
+function boardsMatchingFilter() {
+  const q = boardFilter.trim().toLowerCase()
+  if (!q) return boards
+  return boards.filter(b => boardHaystack(b).includes(q))
+}
+
+function openBoardPicker() {
+  if (!boards.length) return
+  boardPickerOpen = true
+  show($('board-picker-panel'), true)
+  $('board-picker-toggle').setAttribute('aria-expanded', 'true')
+  const search = $('board-search')
+  search.value = boardFilter
+  renderBoardOptions()
+  requestAnimationFrame(() => search.focus())
+}
+
+function closeBoardPicker() {
+  boardPickerOpen = false
+  show($('board-picker-panel'), false)
+  $('board-picker-toggle').setAttribute('aria-expanded', 'false')
+}
+
+function updateBoardPickerLabel() {
+  const label = $('board-picker-label')
+  const meta = $('board-picker-meta')
+  const thumb = $('board-picker-thumb')
+  thumb.innerHTML = ''
+  show(thumb, false)
+  show(meta, false)
+
+  if (useLocal) {
+    label.textContent = 'Local firmware file'
+    label.className = 'text-sm font-bold text-black'
+    meta.textContent = 'Flash a .bin from your computer'
+    show(meta, true)
+    return
+  }
+
+  const b = boards.find(x => x.id === selectedBoardId)
+  if (!b) {
+    label.textContent = 'Choose a board…'
+    label.className = 'text-sm font-bold text-neutral-400'
+    return
+  }
+
+  label.textContent = b.title
+  label.className = 'text-sm font-bold text-black'
+  const note = (b.note || '').trim()
+  meta.textContent = note ? `${b.chip} · ${note}` : b.chip
+  show(meta, true)
+  if (b.image) {
+    thumb.innerHTML = `<img src="${escapeHtml(b.image)}" alt="" class="h-full w-full object-cover" loading="lazy" />`
+    show(thumb, true)
+  }
+}
+
+function renderBoardOption(b) {
+  const selected = !useLocal && b.id === selectedBoardId
+  const note = (b.note || '').trim()
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.role = 'option'
+  btn.setAttribute('aria-selected', selected ? 'true' : 'false')
+  btn.className =
+    'flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm transition ' +
+    (selected ? 'bg-black text-white' : 'text-black hover:bg-neutral-50')
+  const muted = selected ? 'text-neutral-300' : 'text-neutral-500'
+  const imgBorder = selected ? 'border-neutral-600' : 'border-neutral-200'
+  btn.innerHTML =
+    (b.image
+      ? `<img src="${escapeHtml(b.image)}" alt="" class="h-10 w-10 shrink-0 border ${imgBorder} bg-white object-cover" loading="lazy" />`
+      : '') +
+    `<span class="min-w-0 flex-1">` +
+    `<span class="flex items-baseline justify-between gap-2">` +
+    `<span class="font-bold">${escapeHtml(b.title)}</span>` +
+    `<span class="shrink-0 text-xs ${muted}">${escapeHtml(b.chip)}</span>` +
+    `</span>` +
+    (note ? `<span class="mt-0.5 block text-xs ${muted}">${escapeHtml(note)}</span>` : '') +
+    `</span>`
+  btn.addEventListener('click', () => selectBoard(b.id))
+  return btn
+}
+
+function renderBoardOptions() {
+  const options = $('board-options')
+  options.innerHTML = ''
+  const matches = boardsMatchingFilter()
+  if (!matches.length) {
+    const empty = document.createElement('p')
+    empty.className = 'px-3 py-4 text-center text-sm text-neutral-400'
+    empty.textContent = boardFilter.trim() ? 'No matching boards' : 'No boards available'
+    options.appendChild(empty)
+    return
+  }
+  for (const b of matches) options.appendChild(renderBoardOption(b))
+}
+
 function renderBoards() {
-  const list = $('board-list')
   const none = $('board-none')
-  list.innerHTML = ''
+  const picker = $('board-picker')
+  const localOpt = $('board-local-option')
 
   if (!boards.length) {
     show(none, !!latestTag && !useLocal)
+    show(picker, false)
+    closeBoardPicker()
     if (latestTag) {
       none.textContent = releaseManifests.get(latestTag) === null
         ? 'Release firmware not mirrored on this site yet — wait for Pages to redeploy after the release.'
@@ -631,61 +739,41 @@ function renderBoards() {
     }
   } else {
     show(none, false)
+    show(picker, true)
   }
 
-  for (const b of boards) {
-    const selected = !useLocal && b.id === selectedBoardId
-    const note = (b.note || '').trim()
-    const muted = selected ? 'text-neutral-300' : 'text-neutral-500'
-    const btn = document.createElement('button')
-    btn.type = 'button'
-    btn.className =
-      'w-full px-4 py-3 text-left transition ' +
-      (selected
-        ? 'bg-black text-white'
-        : 'bg-white text-black hover:bg-neutral-50')
-    const imgBorder = selected ? 'border-neutral-600' : 'border-neutral-200'
-    btn.innerHTML =
-      `<div class="flex items-start gap-3">` +
-      (b.image
-        ? `<img src="${escapeHtml(b.image)}" alt="" class="h-14 w-14 shrink-0 border ${imgBorder} bg-white object-cover" loading="lazy" />`
-        : '') +
-      `<div class="min-w-0 flex-1">` +
-      `<div class="flex items-baseline justify-between gap-3">` +
-      `<p class="text-sm font-bold">${escapeHtml(b.title)}</p>` +
-      `<span class="shrink-0 text-xs ${muted}">${escapeHtml(b.chip)}</span>` +
-      `</div>` +
-      (note ? `<p class="mt-0.5 text-xs ${muted}">${escapeHtml(note)}</p>` : '') +
-      `</div>` +
-      `</div>`
-    btn.addEventListener('click', () => selectBoard(b.id))
-    list.appendChild(btn)
+  if (localOpt) {
+    localOpt.className =
+      'w-full rounded px-3 py-2.5 text-left text-sm transition ' +
+      (useLocal ? 'bg-neutral-100' : 'hover:bg-neutral-50')
   }
 
-  const localSelected = useLocal
-  const localBtn = document.createElement('button')
-  localBtn.type = 'button'
-  localBtn.className =
-    'w-full px-4 py-3 text-left transition ' +
-    (localSelected
-      ? 'bg-black text-white'
-      : 'bg-neutral-50 text-black hover:bg-neutral-100')
-  const localMuted = localSelected ? 'text-neutral-300' : 'text-neutral-500'
-  localBtn.innerHTML =
-    `<div class="flex items-start gap-3">` +
-    `<div class="flex h-14 w-14 shrink-0 items-center justify-center border ${localSelected ? 'border-neutral-600' : 'border-neutral-200'} bg-white">` +
-    `<svg class="h-6 w-6 ${localMuted}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="square" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/></svg>` +
-    `</div>` +
-    `<div class="min-w-0 flex-1">` +
-    `<p class="text-sm font-bold">Local firmware file</p>` +
-    `<p class="mt-0.5 text-xs ${localMuted}">Flash a .bin from your computer</p>` +
-    `</div>` +
-    `</div>`
-  localBtn.addEventListener('click', () => selectLocal())
-  list.appendChild(localBtn)
-
+  updateBoardPickerLabel()
+  if (boardPickerOpen) renderBoardOptions()
   show($('board-local-panel'), useLocal)
-  show(list, true)
+}
+
+function setupBoardPicker() {
+  $('board-picker-toggle').addEventListener('click', () => {
+    if (boardPickerOpen) closeBoardPicker()
+    else openBoardPicker()
+  })
+  $('board-search').addEventListener('input', e => {
+    boardFilter = e.target.value
+    renderBoardOptions()
+  })
+  $('board-search').addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeBoardPicker()
+      $('board-picker-toggle').focus()
+    }
+  })
+  $('board-local-option').addEventListener('click', () => selectLocal())
+  document.addEventListener('click', e => {
+    if (!boardPickerOpen) return
+    if (!$('board-picker-root').contains(e.target)) closeBoardPicker()
+  })
 }
 
 async function loadReleaseManifest(tag) {
@@ -721,7 +809,7 @@ function filesForBoardRelease(manifest, boardId, tag) {
 
 async function initBoards() {
   show($('board-loading'), true)
-  show($('board-list'), false)
+  show($('board-picker'), false)
   show($('board-none'), false)
   show($('fw-version'), false)
   latestTag = null
@@ -1370,6 +1458,7 @@ function renderBuildInfo() {
 initBoards().then(() => {
   if (location.protocol === 'file:') selectLocal()
 })
+setupBoardPicker()
 render()
 updateMonitorToolbar()
 renderBuildInfo()

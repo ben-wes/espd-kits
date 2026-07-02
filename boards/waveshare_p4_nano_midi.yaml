@@ -1,11 +1,11 @@
 id: waveshare_p4_nano_midi
 name: Waveshare ESP32-P4-NANO (USB MIDI)
-note: Type-A OTG
+note: MIDI host only via USB-A
 target: esp32p4
 help: |
-  Waveshare ESP32-P4-NANO: Type-A OTG for USB MIDI (device or host via
-  config.txt usb_midi_role). Type-C (CH343) is UART only — flash, monitor,
-  dev sync (cu.usbmodem* at 921600).
+  Waveshare ESP32-P4-NANO: Type-A OTG is USB MIDI host on stock hardware (plug a
+  controller into the A port). Type-C (CH343) is UART only — flash, monitor,
+  and dev sync (cu.usbmodem* at 921600).
 
   Power: Type-C or 5 V header (Type-A does not power the board).
 

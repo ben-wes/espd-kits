@@ -1,5 +1,6 @@
 id: waveshare_s3_midi
 name: Waveshare ESP32-S3-AUDIO (USB MIDI)
+note: MIDI device only
 target: esp32s3
 help: |
   Waveshare ESP32-S3-AUDIO with TinyUSB OTG: CDC serial, dev sync (espd_sync),
