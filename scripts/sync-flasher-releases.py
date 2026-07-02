@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import sys
 import urllib.error
 import urllib.request
@@ -14,7 +15,7 @@ from pathlib import Path
 
 REPO = "ben-wes/espd-kits"
 UA = "espd-kits-flasher-sync"
-DEFAULT_MAX_RELEASES = 8
+DEFAULT_MAX_RELEASES = 1
 
 
 def _manifest_helpers():
@@ -107,6 +108,19 @@ def refresh_board_metadata(
             board["files"] = files
 
 
+def prune_stale_mirrors(
+    manifests_dir: Path, firmware_dir: Path, kept_tags: set[str]
+) -> None:
+    for path in manifests_dir.glob("*.json"):
+        if path.stem not in kept_tags:
+            print(f"  prune manifest {path.name}")
+            path.unlink()
+    for path in firmware_dir.iterdir():
+        if path.is_dir() and path.name not in kept_tags:
+            print(f"  prune firmware/{path.name}/")
+            shutil.rmtree(path)
+
+
 def sync_flasher_releases(
     root: Path, token: str | None = None, max_releases: int = DEFAULT_MAX_RELEASES
 ) -> int:
@@ -132,6 +146,7 @@ def sync_flasher_releases(
         return 0
 
     synced = 0
+    synced_tags: set[str] = set()
     for release in stable:
         tag = release["tag_name"]
         assets = release.get("assets") or []
@@ -165,7 +180,10 @@ def sync_flasher_releases(
         rewrite_manifest_urls(manifest, tag, firmware_dir, token)
         refresh_board_metadata(manifest, kit_boards, manifest_mod, root)
         out_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        synced_tags.add(tag)
         synced += 1
+
+    prune_stale_mirrors(manifests_dir, firmware_dir, synced_tags)
 
     print(
         f"mirrored {synced} release(s) (max {max_releases}) into {flasher.relative_to(root)}/"
