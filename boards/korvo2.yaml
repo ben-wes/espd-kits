@@ -1,5 +1,6 @@
 id: korvo2
 name: ESP32-S3-Korvo-2
+note: mic array, LCD
 target: esp32s3
 help: |
   Espressif ESP32-S3-Korvo-2 multimedia board (ES7210 mic array,
@@ -28,8 +29,3 @@ profile:
   storage:
     # SD cards use 512-byte sectors; chip-wide FATFS 4096 breaks SD mount.
     FATFS_SECTOR_512: y
-
-flasher:
-  title: Korvo-2
-  note: mic array, LCD
-  image: assets/boards/korvo2.jpg

@@ -16,13 +16,14 @@ Multi-board ready UI in `index.html` + `app.js`.
 **`manifest.json`** is attached to each GitHub Release tag and drives the board list. Generated from `boards/<id>.yaml` on tag:
 
 ```yaml
-flasher:
-  title: Waveshare S3 Audio · MIDI   # required — short list label
-  note: Type-A OTG                   # optional — second line when title isn't enough
-  image: assets/boards/waveshare_s3.jpg
+id: waveshare_s3
+name: Waveshare ESP32-S3-AUDIO   # flasher title
+note: USB Serial JTAG sync       # optional subtitle
 ```
 
-`name` and `help` in the YAML are for menuconfig / integrators only — not shown in the flasher.
+Board photo: `flasher/assets/boards/<id>.jpg` (included in the manifest only when the file exists).
+
+`help` is for menuconfig / integrators — not shown in the flasher.
 
 Example:
 
@@ -34,8 +35,9 @@ Example:
       "id": "waveshare_s3",
       "target": "esp32s3",
       "chip": "ESP32-S3",
-      "title": "Waveshare S3 Audio",
+      "title": "Waveshare ESP32-S3-AUDIO",
       "note": "USB Serial JTAG sync",
+      "image": "assets/boards/waveshare_s3.jpg",
       "files": {
         "bootloader": { "url": "…/waveshare_s3-bootloader.bin", "offset": 0 },
         "partition_table": { "url": "…/waveshare_s3-partition-table.bin", "offset": 32768 },

@@ -1,5 +1,6 @@
 id: waveshare_s3
 name: Waveshare ESP32-S3-AUDIO
+note: USB Serial JTAG sync
 target: esp32s3
 help: |
   Waveshare ESP32-S3-AUDIO (ES8311 codec, ES7210 mic): USB Serial JTAG for
@@ -21,16 +22,7 @@ features:
     - ESPD_USE_AIN
     - ESPD_USE_AOUT
     - ESPD_USE_WIFI
-
-profile:
-  Dev sync:
-    ESPD_DEV_SYNC: y
-    ESPD_DEV_SERIAL_SYNC: y
+    - ESPD_DEV_SYNC
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
-
-flasher:
-  title: Waveshare S3 Audio
-  note: USB Serial JTAG sync
-  image: assets/boards/waveshare_s3.jpg

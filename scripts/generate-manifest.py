@@ -74,13 +74,24 @@ def _flasher_cfg(data: dict) -> dict:
     return flasher if isinstance(flasher, dict) else {}
 
 
-def release_board_entry(board: dict) -> dict:
+def board_flasher_image(root: Path, board_id: str, flasher: dict) -> str | None:
+    """Relative path under flasher/ when a board photo exists."""
+    override = flasher.get("image")
+    if override:
+        return str(override).strip() or None
+    rel = Path("assets/boards") / f"{board_id}.jpg"
+    if (root / "flasher" / rel).is_file():
+        return rel.as_posix()
+    return None
+
+
+def release_board_entry(board: dict, root: Path | None = None) -> dict:
     data = board["data"]
     board_id = board["id"]
     flasher = _flasher_cfg(data)
-    title = str(flasher.get("title") or "").strip()
+    title = str(board.get("name") or data.get("name") or board_id).strip()
     if not title:
-        raise ValueError(f"boards/{board_id}.yaml: flasher.title is required")
+        raise ValueError(f"boards/{board_id}.yaml: name is required")
 
     entry: dict = {
         "id": board_id,
@@ -88,12 +99,13 @@ def release_board_entry(board: dict) -> dict:
         "chip": chip_label(board["target"]),
         "title": title,
     }
-    note = str(flasher.get("note") or "").strip()
+    note = str(data.get("note") or flasher.get("note") or "").strip()
     if note:
         entry["note"] = note
-    image = flasher.get("image")
-    if image:
-        entry["image"] = image
+    if root is not None:
+        image = board_flasher_image(root, board_id, flasher)
+        if image:
+            entry["image"] = image
     return entry
 
 
@@ -136,7 +148,7 @@ def write_release_manifest(
     base = base_url.rstrip("/")
     out_boards = []
     for board in discover_boards(root):
-        entry = release_board_entry(board)
+        entry = release_board_entry(board, root)
         if base:
             entry["files"] = release_files(base, board["id"], board["target"])
         out_boards.append(entry)

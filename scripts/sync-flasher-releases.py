@@ -78,18 +78,23 @@ def rewrite_manifest_urls(manifest: dict, tag: str, firmware_dir: Path, token: s
             spec["url"] = f"firmware/{tag}/{filename}"
 
 
-def fallback_board_entry(bid: str, tag: str, kit_boards: dict, manifest_mod) -> dict:
+def fallback_board_entry(
+    bid: str, tag: str, kit_boards: dict, manifest_mod, root: Path
+) -> dict:
     if bid in kit_boards:
-        entry = manifest_mod.release_board_entry(kit_boards[bid])
+        entry = manifest_mod.release_board_entry(kit_boards[bid], root)
     else:
         entry = {"id": bid, "name": bid}
     entry["files"] = manifest_mod.release_files(
-        f"https://github.com/{REPO}/releases/download/{tag}", bid
+        f"https://github.com/{REPO}/releases/download/{tag}", bid,
+        kit_boards[bid]["target"] if bid in kit_boards else "",
     )
     return entry
 
 
-def refresh_board_metadata(manifest: dict, kit_boards: dict, manifest_mod) -> None:
+def refresh_board_metadata(
+    manifest: dict, kit_boards: dict, manifest_mod, root: Path
+) -> None:
     """Apply current boards/*.yaml flasher fields; keep mirrored file URLs."""
     for board in manifest.get("boards") or []:
         bid = board.get("id")
@@ -97,7 +102,7 @@ def refresh_board_metadata(manifest: dict, kit_boards: dict, manifest_mod) -> No
             continue
         files = board.get("files")
         board.clear()
-        board.update(manifest_mod.release_board_entry(kit_boards[bid]))
+        board.update(manifest_mod.release_board_entry(kit_boards[bid], root))
         if files:
             board["files"] = files
 
@@ -152,13 +157,13 @@ def sync_flasher_releases(
             manifest = {
                 "version": tag,
                 "boards": [
-                    fallback_board_entry(bid, tag, kit_boards, manifest_mod)
+                    fallback_board_entry(bid, tag, kit_boards, manifest_mod, root)
                     for bid in board_ids
                 ],
             }
 
         rewrite_manifest_urls(manifest, tag, firmware_dir, token)
-        refresh_board_metadata(manifest, kit_boards, manifest_mod)
+        refresh_board_metadata(manifest, kit_boards, manifest_mod, root)
         out_manifest.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         synced += 1
 

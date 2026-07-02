@@ -1,5 +1,6 @@
 id: waveshare_s3_ap
 name: Waveshare ESP32-S3-AUDIO (SoftAP sync)
+note: wireless patch sync
 target: esp32s3
 help: |
   Waveshare ESP32-S3-AUDIO — SoftAP patch-sync dev profile (battery-friendly:
@@ -23,24 +24,8 @@ features:
     - ESPD_USE_AIN
     - ESPD_USE_AOUT
     - ESPD_USE_WIFI
+    - ESPD_DEV_SYNC
+    - ESPD_WIFI_AP_SYNC
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
-
-profile:
-  SoftAP sync dev:
-    ESPD_ENABLE_LEGACY_WIFI_TRANSPORT: n
-    ESPD_DEV_SYNC: y
-    ESPD_DEV_SERIAL_SYNC: y
-    ESPD_WIFI_AP_SYNC: y
-    MBEDTLS_TLS_SERVER_AND_CLIENT: y
-    MBEDTLS_SSL_KEEP_PEER_CERTIFICATE: y
-    MBEDTLS_DYNAMIC_BUFFER: y
-    MBEDTLS_DYNAMIC_FREE_CONFIG_DATA: y
-    ESP_TLS_USE_DS_PERIPHERAL: n
-    SPIRAM_MALLOC_RESERVE_INTERNAL: 131072
-
-flasher:
-  image: assets/boards/waveshare_s3.jpg
-  title: Waveshare S3 Audio · SoftAP
-  note: wireless patch sync

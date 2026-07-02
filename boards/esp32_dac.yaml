@@ -1,5 +1,6 @@
 id: esp32_dac
 name: ESP32 Internal DAC
+note: GPIO25/26
 target: esp32
 generic: true
 help: |
@@ -9,8 +10,3 @@ help: |
 profile:
   Audio:
     ESPD_AUDIO_BACKEND_DAC: y
-
-flasher:
-  title: ESP32 DAC
-  note: GPIO25/26
-  image: assets/boards/esp32_dac.jpg

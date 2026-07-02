@@ -29,11 +29,3 @@ features:
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
-
-profile:
-  USB MIDI:
-    ESPD_USE_USB_MIDI_HOST: n
-
-flasher:
-  title: Waveshare S3 Audio · MIDI
-  image: assets/boards/waveshare_s3.jpg

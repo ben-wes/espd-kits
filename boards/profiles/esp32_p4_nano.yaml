@@ -1,0 +1,54 @@
+# Shared kits profile for esp-bsp component esp32_p4_nano (Waveshare P4 Nano family).
+# Loaded automatically by gen_board_plugins.py from boards/profiles/<component>.yaml.
+
+# Type-C CH343 UART — separate from Type-A OTG (console + dev sync stay on UART).
+uart_console:
+  num: 0
+  tx_gpio: 37
+  rx_gpio: 38
+  baud: 921600
+  usj_disable: true
+
+sdkconfig:
+  BSP_CONFIG_NO_GRAPHIC_LIB: 1
+  ESPTOOLPY_FLASHSIZE_16MB: y
+  SPIRAM: y
+  SPIRAM_MODE_HEX: y
+  SPIRAM_SPEED_200M: y
+  SPIRAM_BOOT_INIT: y
+  SPIRAM_USE_MALLOC: y
+  SPIRAM_TRY_ALLOCATE_WIFI_LWIP: y
+  SPIRAM_MALLOC_ALWAYSINTERNAL: 16384
+  SPIRAM_MALLOC_RESERVE_INTERNAL: 32768
+  CODEC_ES8311_SUPPORT: y
+  BSP_SD_MOUNT_POINT: '"/sdcard"'
+  LV_CONF_SKIP: y
+  FATFS_SECTOR_512: y
+  FATFS_LFN_HEAP: y
+  WL_SECTOR_SIZE_512: y
+  # esp_hosted board profile + shared SD/C6 LDO (see espd.c boot order).
+  ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD: y
+  ESP_HOSTED_SD_PWR_CTRL_LDO_INTERNAL_IO: n
+
+lcd_types_off:
+  - BSP_LCD_TYPE_480_640_2_8_INCH
+  - BSP_LCD_TYPE_800_800_3_4_INCH_C
+  - BSP_LCD_TYPE_720_720_4_INCH_C
+  - BSP_LCD_TYPE_480_800_4_INCH
+  - BSP_LCD_TYPE_720_1280_5_INCH_D
+  - BSP_LCD_TYPE_720_1560_6_25_INCH
+  - BSP_LCD_TYPE_1024_600_5_INCH_C
+  - BSP_LCD_TYPE_1024_600_7_INCH_C
+  - BSP_LCD_TYPE_400_1280_7_9_INCH
+  - BSP_LCD_TYPE_1280_800_7_INCH_E
+  - BSP_LCD_TYPE_1280_800_8_INCH_C
+  - BSP_LCD_TYPE_1280_800_10_1_INCH_C
+  - BSP_LCD_TYPE_480_1920_8_8_INCH
+  - BSP_LCD_TYPE_320_1480_11_9_INCH
+  - BSP_LCD_TYPE_800_1280_10_1_INCH
+  - BSP_LCD_TYPE_800_1280_10_1_INCH_A
+  - BSP_LCD_TYPE_800_1280_8_INCH_A
+  - BSP_LCD_TYPE_720_1280_7_INCH_A
+  - BSP_LCD_TYPE_720_1280_5_INCH_A
+  - BSP_LCD_TYPE_720_1280_10_1_INCH_B
+  - BSP_LCD_TYPE_720_1280_9_INCH_B
