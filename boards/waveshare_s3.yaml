@@ -5,8 +5,8 @@ target: esp32s3
 help: |
   Waveshare ESP32-S3-AUDIO (ES8311 codec, ES7210 mic): USB Serial JTAG for
   flash, serial monitor, and dev sync (espd_sync) — one cable, one port. No
-  TinyUSB OTG (use waveshare_s3_midi for USB MIDI; waveshare_s3_ap for
-  wireless SoftAP sync).
+  TinyUSB OTG (use waveshare_s3_msc for USB mass storage; waveshare_s3_midi for
+  USB MIDI; waveshare_s3_ap for wireless SoftAP sync).
   macOS: cu.usbmodem*101 — idf.py monitor and espd_sync.py use the same port.
 
 bsp:
