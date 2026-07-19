@@ -23,6 +23,7 @@ features:
     - ESPD_USE_AOUT
     - ESPD_USE_WIFI
     - ESPD_DEV_SYNC
+    - ESPD_USE_I2C
 
 io:
   buttons: [VOLUP, PLAY, VOLDOWN]
