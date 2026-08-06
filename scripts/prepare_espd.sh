@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Init espd submodule and apply Pd patches (does not modify espd/boards or sdkconfig).
+# Init espd submodule and apply Pd patches (does not touch sdkconfig).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
